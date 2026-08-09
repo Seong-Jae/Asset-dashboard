@@ -30,12 +30,7 @@ st.set_page_config(page_title="내 자산 MTS", page_icon="📈", layout="wide",
 # --- MTS 스타일 커스텀 CSS 주입 ---
 st.markdown("""
     <style>
-    /* 전체 배경 및 폰트 */
-    .stApp {
-        background-color: #0B0E14;
-    }
-    
-    /* 상단 요약 카드 스타일 */
+    .stApp { background-color: #0B0E14; }
     .summary-card {
         background-color: #1C1F26;
         padding: 20px;
@@ -43,39 +38,21 @@ st.markdown("""
         box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         margin-bottom: 20px;
     }
-    .summary-title {
-        color: #8B95A1;
-        font-size: 14px;
-        margin-bottom: 5px;
-        font-weight: 600;
-    }
-    .summary-total {
-        color: #FFFFFF;
-        font-size: 32px;
-        font-weight: 800;
-        margin: 0px 0px 5px 0px;
-    }
-    .profit { color: #FF4256 !important; font-weight: 700; }  /* 증권사 상승 빨강 */
-    .loss { color: #3182F6 !important; font-weight: 700; }    /* 증권사 하락 파랑 */
+    .summary-title { color: #8B95A1; font-size: 14px; margin-bottom: 5px; font-weight: 600; }
+    .summary-total { color: #FFFFFF; font-size: 32px; font-weight: 800; margin: 0px 0px 5px 0px; }
+    .profit { color: #FF4256 !important; font-weight: 700; }  
+    .loss { color: #3182F6 !important; font-weight: 700; }    
     .neutral { color: #8B95A1 !important; font-weight: 500; }
     
-    /* 탭 디자인 개선 */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
     .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: #1C1F26;
-        border-radius: 8px 8px 0 0;
-        padding: 10px 16px;
-        color: #FAFAFA;
+        height: 50px; white-space: pre-wrap;
+        background-color: #1C1F26; border-radius: 8px 8px 0 0;
+        padding: 10px 16px; color: #FAFAFA;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #2C313C;
-        border-bottom-color: #FF4256 !important;
-        color: #FF4256 !important;
-        font-weight: bold;
+        background-color: #2C313C; border-bottom-color: #FF4256 !important;
+        color: #FF4256 !important; font-weight: bold;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -163,8 +140,8 @@ current_prices = fetch_all_prices(st.session_state.assets)
 
 total_valuation, global_principal = 0, 0
 cat_summary = {}
-
 asset_df_data = []
+
 for idx, item in enumerate(st.session_state.assets):
     cat, name, t_type = item.get("category", "기타"), item["name"], item["type"]
     qty, avg_p = float(item["qty"]), float(item.get("avg_price", 0))
@@ -230,7 +207,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# 실시간 갱신 버튼을 우측 정렬로 깔끔하게 배치
 col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 1])
 with col_btn3:
     if st.button("🔄 실시간 시세 갱신", use_container_width=True):
@@ -240,7 +216,6 @@ with col_btn3:
 # --- 탭 구성 ---
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["보유 자산", "계좌 요약", "비중 분석", "손익 현황", "시세 차트", "거래 내역"])
 
-# --- 데이터프레임 색상 포매팅 함수 ---
 def color_profit_loss(val):
     if isinstance(val, str) and ('%' in val or val.replace(',', '').lstrip('-').isdigit()):
         v = float(val.replace('%', '').replace(',', ''))
@@ -250,7 +225,7 @@ def color_profit_loss(val):
 
 with tab1:
     df_assets = pd.DataFrame(asset_df_data).drop(columns=['_raw_pl', '_raw_val', '_type', 'ID'])
-    # Pandas Styler를 사용해 MTS처럼 수익률에 색상 적용
+    # Pandas 버전 호환성을 위해 map 사용 (에러 수정 완료)
     styled_df = df_assets.style.map(color_profit_loss, subset=['평가손익', '수익률(%)'])
     st.dataframe(styled_df, use_container_width=True)
     
@@ -324,10 +299,12 @@ with tab2:
                     save_data()
                     st.rerun()
 
+# --- 탭 3: 비중 분석 (전체 비중 & 분류별 상세 구성 추가) ---
 with tab3:
     mode = st.radio("분석 기준", ["현재 평가금액 기준", "총 원금 기준"], horizontal=True)
-    fig_pie, ax_pie = plt.subplots(figsize=(6,6))
     
+    # 1. 전체 분류 비중 파이차트
+    fig_pie, ax_pie = plt.subplots(figsize=(6, 5))
     cat_vals = {}
     if mode == "현재 평가금액 기준":
         for d in summary_df_data: cat_vals[d['분류']] = int(d['총평가금액'].replace(',', ''))
@@ -336,11 +313,35 @@ with tab3:
         
     if cat_vals:
         ax_pie.pie(cat_vals.values(), labels=cat_vals.keys(), autopct='%1.1f%%', colors=plt.cm.Set3.colors, textprops={'color': TEXT_COLOR, 'fontsize': 10})
+        ax_pie.set_title("전체 자산 비중", color=TEXT_COLOR, pad=15, fontweight='bold')
         st.pyplot(fig_pie)
-
-with tab4:
-    fig_bar, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 10))
     
+    st.markdown("<hr style='border: 1px solid #2C313C;'>", unsafe_allow_html=True)
+    st.markdown("#### 🔍 계좌(분류)별 상세 자산 구성")
+    
+    # 2. 각 분류별 자산 구성 파이차트 (모바일 2열 배치)
+    cols = st.columns(2)
+    idx = 0
+    for cat in cat_vals.keys():
+        sub_items = [d for d in asset_df_data if d['분류'] == cat and d['_raw_val'] > 0]
+        if sub_items:
+            with cols[idx % 2]:
+                fig_sub, ax_sub = plt.subplots(figsize=(4, 4))
+                s_names = [d['자산명'] for d in sub_items]
+                s_vals = [d['_raw_val'] for d in sub_items]
+                
+                ax_sub.pie(s_vals, labels=s_names, autopct='%1.1f%%', colors=plt.cm.tab20.colors, textprops={'color': TEXT_COLOR, 'fontsize': 9})
+                ax_sub.set_title(f"[{cat}]", color=TEXT_COLOR, fontweight='bold')
+                st.pyplot(fig_sub)
+            idx += 1
+
+# --- 탭 4: 손익 현황 (동일 종목 합산 처리 추가) ---
+with tab4:
+    # 차트 간격 조정을 위해 hspace 추가
+    fig_bar, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 11))
+    plt.subplots_adjust(hspace=0.4) 
+    
+    # 1. 분류별 손익
     cat_names = [d['분류'] for d in summary_df_data]
     cat_pls = [d['_raw_pl'] for d in summary_df_data]
     c_colors = [RED_COLOR if x >= 0 else BLUE_COLOR for x in cat_pls]
@@ -351,20 +352,27 @@ with tab4:
         ax1.yaxis.set_major_formatter(FuncFormatter(format_manwon))
         for bar in bars1:
             h = bar.get_height()
-            ax1.text(bar.get_x() + bar.get_width()/2, h, f"{int(h/10000)}만", ha='center', va='bottom' if h>0 else 'top', color=TEXT_COLOR, fontweight='bold')
+            ax1.text(bar.get_x() + bar.get_width()/2, h, f"{int(h/10000)}만", ha='center', va='bottom' if h>0 else 'top', color=TEXT_COLOR, fontweight='bold', fontsize=9)
             
-    items = [d for d in asset_df_data if d['_type'] != 'cash' and d['_raw_pl'] != 0]
-    if items:
-        i_names = [d['자산명'] for d in items]
-        i_pls = [d['_raw_pl'] for d in items]
+    # 2. 종목별 손익 (같은 자산명 끼리 손익 합산)
+    item_pl_agg = {}
+    for d in asset_df_data:
+        if d['_type'] != 'cash' and d['_raw_pl'] != 0:
+            name = d['자산명']
+            item_pl_agg[name] = item_pl_agg.get(name, 0) + d['_raw_pl']
+            
+    if item_pl_agg:
+        i_names = list(item_pl_agg.keys())
+        i_pls = list(item_pl_agg.values())
         i_colors = [RED_COLOR if x >= 0 else BLUE_COLOR for x in i_pls]
+        
         bars2 = ax2.bar(i_names, i_pls, color=i_colors, width=0.5)
-        ax2.set_title("종목별 손익 현황 (만원)", color=TEXT_COLOR, pad=15, fontweight='bold')
+        ax2.set_title("종목별 합산 손익 현황 (만원)", color=TEXT_COLOR, pad=15, fontweight='bold')
         ax2.axhline(0, color=TEXT_COLOR, alpha=0.3)
         ax2.yaxis.set_major_formatter(FuncFormatter(format_manwon))
         for bar in bars2:
             h = bar.get_height()
-            ax2.text(bar.get_x() + bar.get_width()/2, h, f"{int(h/10000)}만", ha='center', va='bottom' if h>0 else 'top', color=TEXT_COLOR, fontweight='bold')
+            ax2.text(bar.get_x() + bar.get_width()/2, h, f"{int(h/10000)}만", ha='center', va='bottom' if h>0 else 'top', color=TEXT_COLOR, fontweight='bold', fontsize=9)
             
     st.pyplot(fig_bar)
 
