@@ -27,7 +27,7 @@ plt.rcParams['axes.unicode_minus'] = False
 # --- 기본 페이지 설정 ---
 st.set_page_config(page_title="내 자산 MTS", page_icon="📈", layout="wide", initial_sidebar_state="collapsed")
 
-# --- MTS 스타일 커스텀 CSS 주입 ---
+# --- MTS 스타일 커스텀 CSS 주입 (표 디자인 포함) ---
 st.markdown("""
     <style>
     .stApp { background-color: #0B0E14; }
@@ -54,6 +54,13 @@ st.markdown("""
         background-color: #2C313C; border-bottom-color: #FF4256 !important;
         color: #FF4256 !important; font-weight: bold;
     }
+    
+    /* HTML 커스텀 표 스타일 */
+    table { width: 100%; border-collapse: collapse; background-color: #1C1F26; border-radius: 10px; overflow: hidden; margin-bottom: 20px;}
+    th, td { padding: 12px 10px; border-bottom: 1px solid #2C313C; }
+    th { background-color: #2C313C; color: #8B95A1; font-size: 13px; text-align: center !important; font-weight: 600; }
+    td { font-size: 14px; }
+    tr:hover { background-color: #252A34; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -158,7 +165,7 @@ for idx, item in enumerate(st.session_state.assets):
     cat_summary[cat]["auto_prin"] += invested
     
     asset_df_data.append({
-        "ID": idx, "분류": cat, "자산명": name, 
+        "분류": cat, "자산명": name, 
         "수량": f"{qty:,.4f}" if t_type == "crypto" else f"{qty:,.2f}" if qty%1!=0 else f"{int(qty):,}",
         "매수단가": f"{avg_p:,.2f}" if t_type in ["fx", "crypto"] else f"{int(avg_p):,}",
         "현재가": f"{price:,.2f}" if t_type in ["fx", "crypto"] else f"{int(price):,}",
@@ -168,7 +175,7 @@ for idx, item in enumerate(st.session_state.assets):
 
 for cat, dep in st.session_state.deposits.items():
     if cat != "외환" and dep > 0:
-        asset_df_data.append({"ID": "-", "분류": cat, "자산명": "예수금(현금)", "수량": "-", "매수단가": "-", "현재가": "-", "평가손익": "-", "수익률(%)": "-", "평가금액": f"{int(dep):,}", "_raw_pl": 0, "_raw_val": dep, "_type": "cash"})
+        asset_df_data.append({"분류": cat, "자산명": "예수금(현금)", "수량": "-", "매수단가": "-", "현재가": "-", "평가손익": "-", "수익률(%)": "-", "평가금액": f"{int(dep):,}", "_raw_pl": 0, "_raw_val": dep, "_type": "cash"})
 
 summary_df_data = []
 for cat, data in cat_summary.items():
@@ -224,19 +231,19 @@ def color_profit_loss(val):
     return ''
 
 with tab1:
-    df_assets = pd.DataFrame(asset_df_data).drop(columns=['_raw_pl', '_raw_val', '_type', 'ID'])
+    df_assets = pd.DataFrame(asset_df_data).drop(columns=['_raw_pl', '_raw_val', '_type'])
     
-    # 정렬 기준 설정 (글자는 중앙, 숫자는 우측)
     cols_center = ['분류', '자산명']
     cols_right = ['수량', '매수단가', '현재가', '평가손익', '수익률(%)', '평가금액']
     
+    # st.dataframe 대신 to_html을 사용하여 CSS 정렬 강제 적용 (인덱스 숨김)
     styled_df = (df_assets.style
+                 .hide(axis="index")
                  .map(color_profit_loss, subset=['평가손익', '수익률(%)'])
                  .set_properties(subset=cols_center, **{'text-align': 'center'})
                  .set_properties(subset=cols_right, **{'text-align': 'right'})
-                 .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
                 )
-    st.dataframe(styled_df, use_container_width=True)
+    st.markdown(styled_df.to_html(), unsafe_allow_html=True)
     
     with st.expander("💼 주식 매수 / 매도 / 신규 등록"):
         action = st.radio("작업 선택", ["매수", "매도", "신규 등록"], horizontal=True)
@@ -283,17 +290,17 @@ with tab1:
 with tab2:
     df_sum = pd.DataFrame(summary_df_data).drop(columns=['_raw_pl'])
     
-    # 정렬 기준 설정 (글자는 중앙, 숫자는 우측)
     cols_center_sum = ['분류']
     cols_right_sum = ['순원금', '예수금', '주식등평가금', '총평가금액', '평가손익', '수익률(%)']
     
+    # 인덱스 숨기고 HTML로 변환하여 출력
     styled_sum = (df_sum.style
+                  .hide(axis="index")
                   .map(color_profit_loss, subset=['평가손익', '수익률(%)'])
                   .set_properties(subset=cols_center_sum, **{'text-align': 'center'})
                   .set_properties(subset=cols_right_sum, **{'text-align': 'right'})
-                  .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
                  )
-    st.dataframe(styled_sum, use_container_width=True)
+    st.markdown(styled_sum.to_html(), unsafe_allow_html=True)
     
     with st.expander("💳 입/출금 및 예수금 직접 설정"):
         cats = [c["분류"] for c in summary_df_data]
@@ -322,7 +329,6 @@ with tab2:
 with tab3:
     mode = st.radio("분석 기준", ["현재 평가금액 기준", "총 원금 기준"], horizontal=True)
     
-    # 1. 전체 분류 비중 파이차트
     fig_pie, ax_pie = plt.subplots(figsize=(6, 5))
     cat_vals = {}
     if mode == "현재 평가금액 기준":
@@ -341,7 +347,6 @@ with tab3:
     st.markdown("<hr style='border: 1px solid #2C313C;'>", unsafe_allow_html=True)
     st.markdown("#### 🔍 계좌(분류)별 상세 자산 구성")
     
-    # 2. 각 분류별 자산 구성 파이차트 (모바일 2열 배치)
     cols = st.columns(2)
     idx = 0
     
@@ -370,7 +375,6 @@ with tab4:
     fig_bar, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 11))
     plt.subplots_adjust(hspace=0.4) 
     
-    # 1. 분류별 손익
     cat_names = [d['분류'] for d in summary_df_data]
     cat_pls = [d['_raw_pl'] for d in summary_df_data]
     c_colors = [RED_COLOR if x >= 0 else BLUE_COLOR for x in cat_pls]
@@ -383,7 +387,6 @@ with tab4:
             h = bar.get_height()
             ax1.text(bar.get_x() + bar.get_width()/2, h, f"{int(h/10000)}만", ha='center', va='bottom' if h>0 else 'top', color=TEXT_COLOR, fontweight='bold', fontsize=9)
             
-    # 2. 종목별 합산 손익
     item_pl_agg = {}
     for d in asset_df_data:
         if d['_type'] != 'cash' and d['_raw_pl'] != 0:
@@ -437,6 +440,7 @@ with tab5:
 with tab6:
     if st.session_state.history:
         hist_df = pd.DataFrame(reversed(st.session_state.history))
-        st.dataframe(hist_df, use_container_width=True)
+        # 히스토리 탭도 깔끔하게 인덱스 숨긴 표로 통일
+        st.markdown(hist_df.style.hide(axis="index").set_properties(**{'text-align': 'center'}).to_html(), unsafe_allow_html=True)
     else:
         st.info("아직 거래 내역이 없습니다.")
