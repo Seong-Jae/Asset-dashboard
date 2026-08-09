@@ -200,9 +200,9 @@ st.markdown(f"""
 <div class="summary-card">
     <div class="summary-title">총 평가금액 (KRW)</div>
     <div class="summary-total">{int(total_valuation):,} 원</div>
-    <div style="font-size: 16px; margin-top: 8px;">
-        <span class="summary-title" style="margin-right:10px;">총 투자원금: {int(global_principal):,}원</span>
-        <span class="{pl_class}">총 손익: {sign}{int(tot_pl):,}원 ({sign}{tot_pct:.2f}%)</span>
+    <div style="font-size: 16px; margin-top: 10px;">
+        <div class="{pl_class}" style="margin-bottom: 4px;">총 손익: {sign}{int(tot_pl):,}원 ({sign}{tot_pct:.2f}%)</div>
+        <div class="summary-title">총 투자원금: {int(global_principal):,}원</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
