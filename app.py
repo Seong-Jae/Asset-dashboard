@@ -27,10 +27,10 @@ plt.rcParams['axes.unicode_minus'] = False
 # --- 기본 페이지 설정 ---
 st.set_page_config(page_title="내 자산 MTS", page_icon="📈", layout="wide", initial_sidebar_state="collapsed")
 
-# --- MTS 스타일 커스텀 CSS 주입 (표 디자인 포함) ---
+# --- MTS 스타일 커스텀 CSS 주입 ---
 st.markdown("""
     <style>
-    /* 모바일 글씨 흐림 방지 및 안티앨리어싱 강제 적용 */
+    /* 모바일 글씨 흐림 방지 및 안티앨리어싱 */
     * {
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
@@ -55,23 +55,28 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] {
         height: 50px; white-space: pre-wrap;
         background-color: #1C1F26; border-radius: 8px 8px 0 0;
-        padding: 10px 16px; color: #FAFAFA;
-        font-weight: 600; /* 탭 글씨도 약간 굵게 */
+        padding: 10px 16px; color: #FAFAFA; font-weight: 600;
     }
     .stTabs [aria-selected="true"] {
         background-color: #2C313C; border-bottom-color: #FF4256 !important;
         color: #FF4256 !important; font-weight: bold;
     }
     
-    /* HTML 커스텀 표 스타일 (모바일 최적화) */
+    /* 표 스크롤 래퍼 및 줄바꿈 방지 세팅 (모바일 최적화) */
+    .table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch; /* 부드러운 모바일 스크롤 */
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
     table { 
         width: 100%; border-collapse: collapse; background-color: #1C1F26; 
-        border-radius: 10px; overflow: hidden; margin-bottom: 20px;
-        color: #FFFFFF; /* 표 전체 기본 글자를 쨍한 흰색으로 강제 */
+        color: #FFFFFF; 
+        white-space: nowrap; /* 글자 줄바꿈 절대 방지 */
     }
     th, td { padding: 12px 10px; border-bottom: 1px solid #2C313C; }
     th { background-color: #2C313C; color: #8B95A1; font-size: 13px; text-align: center !important; font-weight: 600; }
-    td { font-size: 14px; font-weight: 500; } /* 기본 글씨 굵기를 조금 올려줌 */
+    td { font-size: 14px; font-weight: 500; }
     tr:hover { background-color: #252A34; }
     </style>
 """, unsafe_allow_html=True)
@@ -248,14 +253,15 @@ with tab1:
     cols_center = ['분류', '자산명']
     cols_right = ['수량', '매수단가', '현재가', '평가손익', '수익률(%)', '평가금액']
     
-    # st.dataframe 대신 to_html을 사용하여 CSS 정렬 강제 적용 (인덱스 숨김)
     styled_df = (df_assets.style
                  .hide(axis="index")
                  .map(color_profit_loss, subset=['평가손익', '수익률(%)'])
                  .set_properties(subset=cols_center, **{'text-align': 'center'})
                  .set_properties(subset=cols_right, **{'text-align': 'right'})
                 )
-    st.markdown(styled_df.to_html(), unsafe_allow_html=True)
+    
+    # 📌 테이블을 div(table-wrapper)로 한 번 더 감싸서 가로 스크롤 적용
+    st.markdown(f'<div class="table-wrapper">{styled_df.to_html()}</div>', unsafe_allow_html=True)
     
     with st.expander("💼 주식 매수 / 매도 / 신규 등록"):
         action = st.radio("작업 선택", ["매수", "매도", "신규 등록"], horizontal=True)
@@ -305,14 +311,15 @@ with tab2:
     cols_center_sum = ['분류']
     cols_right_sum = ['순원금', '예수금', '주식등평가금', '총평가금액', '평가손익', '수익률(%)']
     
-    # 인덱스 숨기고 HTML로 변환하여 출력
     styled_sum = (df_sum.style
                   .hide(axis="index")
                   .map(color_profit_loss, subset=['평가손익', '수익률(%)'])
                   .set_properties(subset=cols_center_sum, **{'text-align': 'center'})
                   .set_properties(subset=cols_right_sum, **{'text-align': 'right'})
                  )
-    st.markdown(styled_sum.to_html(), unsafe_allow_html=True)
+    
+    # 📌 테이블을 div(table-wrapper)로 한 번 더 감싸서 가로 스크롤 적용
+    st.markdown(f'<div class="table-wrapper">{styled_sum.to_html()}</div>', unsafe_allow_html=True)
     
     with st.expander("💳 입/출금 및 예수금 직접 설정"):
         cats = [c["분류"] for c in summary_df_data]
@@ -337,8 +344,8 @@ with tab2:
                     save_data()
                     st.rerun()
 
-# --- 탭 3: 비중 분석 ---
 with tab3:
+    st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True) # 상단 여백 확보
     mode = st.radio("분석 기준", ["현재 평가금액 기준", "총 원금 기준"], horizontal=True)
     
     fig_pie, ax_pie = plt.subplots(figsize=(6, 5))
@@ -382,17 +389,17 @@ with tab3:
                 st.pyplot(fig_sub)
             idx += 1
 
-# --- 탭 4: 손익 현황 ---
 with tab4:
+    st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True) # 📌 스트림릿 메뉴바와 안 겹치게 여백 추가
     fig_bar, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 11))
-    plt.subplots_adjust(hspace=0.4) 
+    plt.subplots_adjust(hspace=0.4, top=0.92) # 📌 차트 내부 상단 간격 확보
     
     cat_names = [d['분류'] for d in summary_df_data]
     cat_pls = [d['_raw_pl'] for d in summary_df_data]
     c_colors = [RED_COLOR if x >= 0 else BLUE_COLOR for x in cat_pls]
     if cat_names:
         bars1 = ax1.bar(cat_names, cat_pls, color=c_colors, width=0.5)
-        ax1.set_title("계좌별 손익 현황 (만원)", color=TEXT_COLOR, pad=15, fontweight='bold')
+        ax1.set_title("계좌별 손익 현황 (만원)", color=TEXT_COLOR, pad=20, fontweight='bold')
         ax1.axhline(0, color=TEXT_COLOR, alpha=0.3)
         ax1.yaxis.set_major_formatter(FuncFormatter(format_manwon))
         for bar in bars1:
@@ -411,7 +418,7 @@ with tab4:
         i_colors = [RED_COLOR if x >= 0 else BLUE_COLOR for x in i_pls]
         
         bars2 = ax2.bar(i_names, i_pls, color=i_colors, width=0.5)
-        ax2.set_title("종목별 합산 손익 현황 (만원)", color=TEXT_COLOR, pad=15, fontweight='bold')
+        ax2.set_title("종목별 합산 손익 현황 (만원)", color=TEXT_COLOR, pad=20, fontweight='bold')
         ax2.axhline(0, color=TEXT_COLOR, alpha=0.3)
         ax2.yaxis.set_major_formatter(FuncFormatter(format_manwon))
         for bar in bars2:
@@ -421,6 +428,7 @@ with tab4:
     st.pyplot(fig_bar)
 
 with tab5:
+    st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
     col_t1, col_t2 = st.columns(2)
     t_asset = col_t1.selectbox("조회할 종목", [a['name'] for a in st.session_state.assets if a['type'] != 'cash'])
     t_period = col_t2.selectbox("조회 기간", ["1mo", "3mo", "6mo", "1y", "3y", "5y"], index=1)
@@ -446,13 +454,15 @@ with tab5:
                     ax_l.legend(frameon=False)
                     ax_l.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d' if t_period in ["1mo","3mo"] else '%Y-%m'))
                     ax_l.yaxis.set_major_formatter(FuncFormatter(format_currency))
-                    ax_l.set_title(f"{t_asset} 시세 추이", color=TEXT_COLOR, fontweight='bold', pad=10)
+                    ax_l.set_title(f"{t_asset} 시세 추이", color=TEXT_COLOR, fontweight='bold', pad=15)
                     st.pyplot(fig_l)
 
 with tab6:
+    st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
     if st.session_state.history:
         hist_df = pd.DataFrame(reversed(st.session_state.history))
-        # 히스토리 탭도 깔끔하게 인덱스 숨긴 표로 통일
-        st.markdown(hist_df.style.hide(axis="index").set_properties(**{'text-align': 'center'}).to_html(), unsafe_allow_html=True)
+        styled_hist = hist_df.style.hide(axis="index").set_properties(**{'text-align': 'center'})
+        # 히스토리 탭도 래퍼를 씌워 가로 스크롤 활성화
+        st.markdown(f'<div class="table-wrapper">{styled_hist.to_html()}</div>', unsafe_allow_html=True)
     else:
         st.info("아직 거래 내역이 없습니다.")
