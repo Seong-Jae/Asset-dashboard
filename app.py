@@ -535,33 +535,43 @@ with tab5:
                 try:
                     hist = yf.Ticker(yf_tkr).history(period=t_period)
                     if not hist.empty:
-                        # 📌 핵심 수정: 금, 은 종목일 경우 시세 데이터를 달러/온스 -> 원화/그램 으로 변환
+                        # 금, 은 종목일 경우 환율 및 단위 변환
                         if t_type in ["gold", "silver"]:
                             krw_hist = yf.Ticker("KRW=X").history(period=t_period)['Close']
-                            
-                            # 날짜 기준으로 정확히 매칭하기 위해 시간 데이터 제거
                             hist.index = hist.index.tz_localize(None).normalize()
                             krw_hist.index = krw_hist.index.tz_localize(None).normalize()
-                            
-                            # 환율 빈 날짜(주말 등)는 이전 날짜 환율로 채우기
                             krw_hist = krw_hist.reindex(hist.index).ffill().bfill()
-                            
-                            # (현재가 * 환율) / 31.1034768(그램 변환)
                             hist['Close'] = (hist['Close'] * krw_hist) / 31.1034768
                             
                         fig_l, ax_l = plt.subplots(figsize=(8, 4))
                         dates, prices = hist.index, hist['Close']
                         c = RED_COLOR if prices.iloc[-1] >= prices.iloc[0] else BLUE_COLOR
-                        ax_l.plot(dates, prices, color=c, linewidth=2)
+                        
+                        ax_l.plot(dates, prices, color=c, linewidth=2, label='종가')
                         ax_l.fill_between(dates, prices, min(prices)*0.99, color=c, alpha=0.1)
                         
                         avg_p = float(asset_info.get('avg_price', 0))
-                        if avg_p > 0: ax_l.axhline(avg_p, color='#FBBF24', linestyle='--', linewidth=1.5, label='내 평단가')
                         
-                        ax_l.legend(frameon=False)
+                        # 📌 평단가 범위 체크 및 스마트 표시 로직
+                        if avg_p > 0:
+                            min_p, max_p = prices.min(), prices.max()
+                            # 차트 상하단 5% 정도의 여유 공간 계산
+                            margin = (max_p - min_p) * 0.05 if max_p != min_p else max_p * 0.05
+                            lower_bound = min_p - margin
+                            upper_bound = max_p + margin
+                            
+                            formatted_avg = f"{avg_p:,.2f}" if t_type in ["fx", "crypto"] else f"{int(avg_p):,}"
+                            
+                            if lower_bound <= avg_p <= upper_bound:
+                                # 평단가가 차트 범위 안에 있으면 기존처럼 점선을 그림
+                                ax_l.axhline(avg_p, color='#FBBF24', linestyle='--', linewidth=1.5, label=f'내 평단가 ({formatted_avg})')
+                            else:
+                                # 평단가가 차트 범위를 벗어나면 점선은 그리지 않고 투명한 더미를 통해 범례(텍스트)로만 표시
+                                ax_l.plot([], [], ' ', label=f'내 평단가: {formatted_avg} (차트 범위 밖)')
+                        
+                        ax_l.legend(frameon=False, loc='best')
                         ax_l.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d' if t_period in ["1mo","3mo"] else '%Y-%m'))
                         
-                        # 외환/크립토는 소수점 유지, 그 외(주식, 실물)는 정수로 콤마 찍기
                         if t_type in ["fx", "crypto"]:
                             ax_l.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: f"{x:,.2f}"))
                         else:
