@@ -9,6 +9,7 @@ from matplotlib.ticker import FuncFormatter
 from datetime import datetime
 import streamlit as st
 import platform
+import numpy as np
 
 # --- 한글 폰트 설정 ---
 if platform.system() == 'Linux':
@@ -25,7 +26,7 @@ else:
 plt.rcParams['axes.unicode_minus'] = False 
 
 # --- 기본 페이지 설정 ---
-st.set_page_config(page_title="내 자산 MTS", page_icon="📈", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="성재님의 자산 MTS", page_icon="📈", layout="wide", initial_sidebar_state="collapsed")
 
 # --- MTS 스타일 커스텀 CSS 주입 ---
 st.markdown("""
@@ -69,8 +70,7 @@ st.markdown("""
     }
     table { 
         width: 100%; border-collapse: collapse; background-color: #1C1F26; 
-        color: #FFFFFF; 
-        white-space: nowrap; 
+        color: #FFFFFF; white-space: nowrap; 
     }
     th, td { padding: 12px 10px; border-bottom: 1px solid #2C313C; }
     th { background-color: #2C313C; color: #8B95A1; font-size: 13px; text-align: center !important; font-weight: 600; }
@@ -214,16 +214,17 @@ for cat, data in cat_summary.items():
 tot_pl = total_valuation - global_principal
 tot_pct = (tot_pl / global_principal * 100) if global_principal > 0 else 0
 
-# --- 상단 MTS 스타일 대시보드 카드 ---
-sign = "+" if tot_pl > 0 else ""
+# --- 📌 상단 MTS 스타일 대시보드 카드 (개인화 & 화살표 적용) ---
+sign_str = "▲ " if tot_pl > 0 else "▼ " if tot_pl < 0 else ""
+sign_math = "+" if tot_pl > 0 else ""
 pl_class = "profit" if tot_pl > 0 else "loss" if tot_pl < 0 else "neutral"
 
 st.markdown(f"""
 <div class="summary-card">
-    <div class="summary-title">총 평가금액 (KRW)</div>
+    <div class="summary-title">👋 성재님의 총 자산 (KRW)</div>
     <div class="summary-total">{int(total_valuation):,} 원</div>
     <div style="font-size: 16px; margin-top: 10px;">
-        <div class="{pl_class}" style="margin-bottom: 4px;">총 손익: {sign}{int(tot_pl):,}원 ({sign}{tot_pct:.2f}%)</div>
+        <div class="{pl_class}" style="margin-bottom: 4px;">총 손익: {sign_str}{int(abs(tot_pl)):,}원 ({sign_math}{tot_pct:.2f}%)</div>
         <div class="summary-title">총 투자원금: {int(global_principal):,}원</div>
     </div>
 </div>
@@ -259,56 +260,52 @@ with tab1:
     
     st.markdown(f'<div class="table-wrapper">{styled_df.to_html()}</div>', unsafe_allow_html=True)
     
-    with st.expander("💼 주식 매수 / 매도 / 신규 계좌 등록"):
-        # 📌 작업 선택 메뉴명 변경
-        action = st.radio("작업 선택", ["매수", "매도", "신규 계좌 등록"], horizontal=True)
+    with st.expander("💼 주식 매수 / 매도 / 자산 삭제"):
+        # 📌 3. 자산 영구 삭제 기능 추가
+        action = st.radio("작업 선택", ["매수", "매도", "자산 영구 삭제"], horizontal=True)
         
-        # 📌 1. [매수] 기능 개편
         if action == "매수":
             asset_names = [f"{i} : {a['category']} - {a['name']}" for i, a in enumerate(st.session_state.assets)]
-            # 기존 자산 리스트 맨 앞에 '새로운 종목 매수' 옵션 추가
             options = ["✨ 새로운 종목 매수"] + asset_names
-            
             sel_option = st.selectbox("대상 자산", options)
             
-            # --- [1-A] 새로운 종목 매수 ---
             if sel_option == "✨ 새로운 종목 매수":
                 existing_cats = list(set([a['category'] for a in st.session_state.assets] + list(st.session_state.deposits.keys())))
-                
-                col_n1, col_n2, col_n3 = st.columns(3)
-                new_cat = col_n1.selectbox("계좌(분류) 선택", existing_cats)
-                new_name = col_n2.text_input("자산명 (예: 삼성전자)")
-                new_type = col_n3.selectbox("자산 종류", ["stock", "crypto", "fx", "gold", "silver"])
-                
-                col_n4, col_n5, col_n6 = st.columns(3)
-                new_ticker = col_n4.text_input("종목코드/티커 (예: 005930)")
-                new_unit = col_n5.text_input("단위 (예: 주, 달러)", "주")
-                t_date = col_n6.date_input("거래일자", datetime.now())
-                
-                col_n7, col_n8 = st.columns(2)
-                t_qty = col_n7.number_input("매수 수량", min_value=0.0, step=1.0)
-                t_price = col_n8.number_input("체결단가 (원)", min_value=0.0, step=100.0)
-                
-                if st.button("새 종목 매수 실행", use_container_width=True, type="primary"):
-                    if new_name and new_ticker and t_qty > 0 and t_price >= 0:
-                        gross_amt = t_qty * t_price
-                        curr_dep = st.session_state.deposits.get(new_cat, 0.0)
-                        if curr_dep < gross_amt:
-                            st.error(f"예수금 부족! (현재: {int(curr_dep):,}원 / 필요: {int(gross_amt):,}원)")
+                if not existing_cats:
+                    st.warning("먼저 '계좌 요약' 탭에서 신규 계좌를 개설해주세요.")
+                else:
+                    col_n1, col_n2, col_n3 = st.columns(3)
+                    new_cat = col_n1.selectbox("계좌(분류) 선택", existing_cats)
+                    new_name = col_n2.text_input("자산명 (예: 삼성전자)")
+                    new_type = col_n3.selectbox("자산 종류", ["stock", "crypto", "fx", "gold", "silver"])
+                    
+                    col_n4, col_n5, col_n6 = st.columns(3)
+                    new_ticker = col_n4.text_input("종목코드/티커 (예: 005930)")
+                    new_unit = col_n5.text_input("단위 (예: 주, 달러)", "주")
+                    t_date = col_n6.date_input("거래일자", datetime.now())
+                    
+                    col_n7, col_n8 = st.columns(2)
+                    t_qty = col_n7.number_input("매수 수량", min_value=0.0, step=1.0)
+                    t_price = col_n8.number_input("체결단가 (원)", min_value=0.0, step=100.0)
+                    
+                    if st.button("새 종목 매수 실행", use_container_width=True, type="primary"):
+                        if new_name and new_ticker and t_qty > 0 and t_price >= 0:
+                            gross_amt = t_qty * t_price
+                            curr_dep = st.session_state.deposits.get(new_cat, 0.0)
+                            if curr_dep < gross_amt:
+                                st.error(f"예수금 부족! (현재: {int(curr_dep):,}원 / 필요: {int(gross_amt):,}원)")
+                            else:
+                                st.session_state.deposits[new_cat] = curr_dep - gross_amt
+                                new_asset = {
+                                    "category": new_cat, "name": new_name, "type": new_type,
+                                    "qty": t_qty, "ticker": new_ticker, "unit": new_unit, "avg_price": t_price
+                                }
+                                st.session_state.assets.append(new_asset)
+                                st.session_state.history.append({"date": str(t_date), "type": "매수", "category": new_cat, "name": new_name, "qty": t_qty, "price": t_price, "unit": new_unit})
+                                save_data()
+                                st.rerun()
                         else:
-                            st.session_state.deposits[new_cat] = curr_dep - gross_amt
-                            new_asset = {
-                                "category": new_cat, "name": new_name, "type": new_type,
-                                "qty": t_qty, "ticker": new_ticker, "unit": new_unit, "avg_price": t_price
-                            }
-                            st.session_state.assets.append(new_asset)
-                            st.session_state.history.append({"date": str(t_date), "type": "매수", "category": new_cat, "name": new_name, "qty": t_qty, "price": t_price, "unit": new_unit})
-                            save_data()
-                            st.rerun()
-                    else:
-                        st.error("자산명, 종목코드, 수량 및 단가를 정확히 입력해주세요.")
-            
-            # --- [1-B] 기존 종목 추가 매수 ---
+                            st.error("자산명, 종목코드, 수량 및 단가를 정확히 입력해주세요.")
             else:
                 sel_asset_idx = int(sel_option.split(" : ")[0])
                 sel_asset = st.session_state.assets[sel_asset_idx]
@@ -335,7 +332,6 @@ with tab1:
                             save_data()
                             st.rerun()
 
-        # 📌 2. [매도] 기능 유지
         elif action == "매도":
             asset_names = [f"{i} : {a['category']} - {a['name']}" for i, a in enumerate(st.session_state.assets)]
             if not asset_names:
@@ -364,26 +360,20 @@ with tab1:
                             st.session_state.history.append({"date": str(t_date), "type": "매도", "category": cat, "name": sel_asset['name'], "qty": t_qty, "price": t_price, "unit": sel_asset['unit']})
                             save_data()
                             st.rerun()
-
-        # 📌 3. [신규 계좌 등록] 기능 분리
-        elif action == "신규 계좌 등록":
-            st.markdown("<br><b>✨ 새로운 계좌(분류) 개설</b>", unsafe_allow_html=True)
-            col_k1, col_k2 = st.columns(2)
-            new_account_name = col_k1.text_input("새 계좌명 (예: 토스증권, 하나은행)")
-            init_deposit = col_k2.number_input("초기 입금액 (예수금)", min_value=0.0, step=10000.0)
-            
-            if st.button("신규 계좌 등록", use_container_width=True, type="primary"):
-                if new_account_name:
-                    if new_account_name in st.session_state.deposits:
-                        st.error("이미 존재하는 계좌명입니다.")
-                    else:
-                        st.session_state.deposits[new_account_name] = init_deposit
-                        st.session_state.principals[new_account_name] = init_deposit
-                        st.success(f"'{new_account_name}' 계좌가 성공적으로 생성되었습니다!")
-                        save_data()
-                        st.rerun()
-                else:
-                    st.error("계좌명을 입력해주세요.")
+                            
+        # 📌 자산 영구 삭제 (오기입 수정 용도)
+        elif action == "자산 영구 삭제":
+            st.markdown("<br><b style='color:#FF4256;'>⚠️ 주의: 목록에서 종목을 영구적으로 삭제합니다. (예수금은 반환되지 않습니다)</b>", unsafe_allow_html=True)
+            asset_names = [f"{i} : {a['category']} - {a['name']}" for i, a in enumerate(st.session_state.assets)]
+            if not asset_names:
+                st.info("삭제할 자산이 없습니다.")
+            else:
+                sel_asset_idx = int(st.selectbox("삭제할 자산 선택", asset_names).split(" : ")[0])
+                if st.button("🗑️ 해당 자산 완전 삭제", use_container_width=True):
+                    deleted_asset = st.session_state.assets.pop(sel_asset_idx)
+                    st.success(f"{deleted_asset['name']} 자산이 목록에서 삭제되었습니다.")
+                    save_data()
+                    st.rerun()
 
 with tab2:
     df_sum = pd.DataFrame(summary_df_data).drop(columns=['_raw_pl'])
@@ -400,26 +390,58 @@ with tab2:
     
     st.markdown(f'<div class="table-wrapper">{styled_sum.to_html()}</div>', unsafe_allow_html=True)
     
-    with st.expander("💳 입/출금 및 예수금 직접 설정"):
-        cats = [c["분류"] for c in summary_df_data]
-        if cats:
-            target_cat = st.selectbox("계좌 선택", cats)
-            col_m1, col_m2 = st.columns(2)
-            dw_amt = col_m1.number_input("금액 (원)", min_value=0.0, step=10000.0)
-            dw_type = col_m2.radio("작업", ["입금 (+)", "출금 (-)"], horizontal=True)
-            
-            if st.button("입/출금 적용", use_container_width=True):
-                if dw_amt > 0:
-                    curr_prin = st.session_state.principals.get(target_cat, cat_summary[target_cat]["auto_prin"])
-                    curr_dep = st.session_state.deposits.get(target_cat, 0.0)
-                    if dw_type == "입금 (+)":
-                        st.session_state.principals[target_cat] = curr_prin + dw_amt
-                        st.session_state.deposits[target_cat] = curr_dep + dw_amt
-                    else:
-                        if curr_dep < dw_amt: st.error("예수금이 부족합니다.")
+    with st.expander("💳 계좌 관리 (입출금 및 신규 개설/삭제)"):
+        mg_action = st.radio("작업", ["입금/출금", "신규 계좌 개설", "계좌 영구 삭제"], horizontal=True)
+        
+        if mg_action == "입금/출금":
+            cats = [c["분류"] for c in summary_df_data]
+            if cats:
+                target_cat = st.selectbox("계좌 선택", cats)
+                col_m1, col_m2 = st.columns(2)
+                dw_amt = col_m1.number_input("금액 (원)", min_value=0.0, step=10000.0)
+                dw_type = col_m2.radio("구분", ["입금 (+)", "출금 (-)"], horizontal=True)
+                
+                if st.button("입/출금 적용", use_container_width=True):
+                    if dw_amt > 0:
+                        curr_prin = st.session_state.principals.get(target_cat, cat_summary[target_cat]["auto_prin"])
+                        curr_dep = st.session_state.deposits.get(target_cat, 0.0)
+                        if dw_type == "입금 (+)":
+                            st.session_state.principals[target_cat] = curr_prin + dw_amt
+                            st.session_state.deposits[target_cat] = curr_dep + dw_amt
                         else:
-                            st.session_state.principals[target_cat] = curr_prin - dw_amt
-                            st.session_state.deposits[target_cat] = curr_dep - dw_amt
+                            if curr_dep < dw_amt: st.error("예수금이 부족합니다.")
+                            else:
+                                st.session_state.principals[target_cat] = curr_prin - dw_amt
+                                st.session_state.deposits[target_cat] = curr_dep - dw_amt
+                        save_data()
+                        st.rerun()
+                        
+        elif mg_action == "신규 계좌 개설":
+            col_k1, col_k2 = st.columns(2)
+            new_account_name = col_k1.text_input("새 계좌명 (예: 토스증권, 하나은행)")
+            init_deposit = col_k2.number_input("초기 입금액 (예수금)", min_value=0.0, step=10000.0)
+            
+            if st.button("신규 계좌 생성", use_container_width=True, type="primary"):
+                if new_account_name:
+                    if new_account_name in st.session_state.deposits:
+                        st.error("이미 존재하는 계좌명입니다.")
+                    else:
+                        st.session_state.deposits[new_account_name] = init_deposit
+                        st.session_state.principals[new_account_name] = init_deposit
+                        save_data()
+                        st.rerun()
+                else:
+                    st.error("계좌명을 입력해주세요.")
+                    
+        # 📌 계좌 삭제 기능
+        elif mg_action == "계좌 영구 삭제":
+            cats = list(st.session_state.deposits.keys())
+            if not cats: st.info("삭제할 계좌가 없습니다.")
+            else:
+                del_cat = st.selectbox("삭제할 계좌 선택 (주의: 계좌 안의 자산은 수동으로 지워야 합니다)", cats)
+                if st.button("🗑️ 해당 계좌 완전 삭제", use_container_width=True):
+                    if del_cat in st.session_state.deposits: del st.session_state.deposits[del_cat]
+                    if del_cat in st.session_state.principals: del st.session_state.principals[del_cat]
                     save_data()
                     st.rerun()
 
@@ -525,12 +547,22 @@ with tab5:
                 if not hist.empty:
                     fig_l, ax_l = plt.subplots(figsize=(8, 4))
                     dates, prices = hist.index, hist['Close']
+                    
+                    # 📌 2. 20일 이동평균선(MA20) 추가 로직
+                    hist['MA20'] = prices.rolling(window=20).mean()
+                    
                     c = RED_COLOR if prices.iloc[-1] >= prices.iloc[0] else BLUE_COLOR
-                    ax_l.plot(dates, prices, color=c, linewidth=2)
+                    ax_l.plot(dates, prices, color=c, linewidth=2, label='종가')
+                    
+                    # MA20 라인 그리기 (데이터가 20일 이상일 때만 표시됨)
+                    ax_l.plot(dates, hist['MA20'], color='#EAB308', linestyle='-', linewidth=1.5, alpha=0.8, label='20일 이평선(MA20)')
+                    
                     ax_l.fill_between(dates, prices, min(prices)*0.99, color=c, alpha=0.1)
                     avg_p = float(asset_info.get('avg_price', 0))
-                    if avg_p > 0: ax_l.axhline(avg_p, color='#FBBF24', linestyle='--', linewidth=1.5, label='내 평단가')
+                    if avg_p > 0: ax_l.axhline(avg_p, color='#FAFAFA', linestyle=':', linewidth=1.5, label='내 평단가')
+                    
                     ax_l.legend(frameon=False)
+                    ax_l.grid(axis='y', color='#2C313C', linestyle='--', alpha=0.7) # 차트 가이드라인 추가
                     ax_l.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d' if t_period in ["1mo","3mo"] else '%Y-%m'))
                     ax_l.yaxis.set_major_formatter(FuncFormatter(format_currency))
                     ax_l.set_title(f"{t_asset} 시세 추이", color=TEXT_COLOR, fontweight='bold', pad=15)
@@ -542,5 +574,11 @@ with tab6:
         hist_df = pd.DataFrame(reversed(st.session_state.history))
         styled_hist = hist_df.style.hide(axis="index").set_properties(**{'text-align': 'center'})
         st.markdown(f'<div class="table-wrapper">{styled_hist.to_html()}</div>', unsafe_allow_html=True)
+        
+        # 📌 5. 거래 내역 초기화 버튼 추가
+        if st.button("🗑️ 전체 거래 내역 지우기 (초기화)"):
+            st.session_state.history = []
+            save_data()
+            st.rerun()
     else:
         st.info("아직 거래 내역이 없습니다.")
