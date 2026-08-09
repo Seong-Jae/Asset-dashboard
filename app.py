@@ -259,103 +259,131 @@ with tab1:
     
     st.markdown(f'<div class="table-wrapper">{styled_df.to_html()}</div>', unsafe_allow_html=True)
     
-    with st.expander("💼 주식 매수 / 매도 / 신규 등록"):
-        action = st.radio("작업 선택", ["매수", "매도", "신규 등록"], horizontal=True)
+    with st.expander("💼 주식 매수 / 매도 / 신규 계좌 등록"):
+        # 📌 작업 선택 메뉴명 변경
+        action = st.radio("작업 선택", ["매수", "매도", "신규 계좌 등록"], horizontal=True)
         
-        # 📌 [매수 / 매도] 로직
-        if action in ["매수", "매도"]:
+        # 📌 1. [매수] 기능 개편
+        if action == "매수":
+            asset_names = [f"{i} : {a['category']} - {a['name']}" for i, a in enumerate(st.session_state.assets)]
+            # 기존 자산 리스트 맨 앞에 '새로운 종목 매수' 옵션 추가
+            options = ["✨ 새로운 종목 매수"] + asset_names
+            
+            sel_option = st.selectbox("대상 자산", options)
+            
+            # --- [1-A] 새로운 종목 매수 ---
+            if sel_option == "✨ 새로운 종목 매수":
+                existing_cats = list(set([a['category'] for a in st.session_state.assets] + list(st.session_state.deposits.keys())))
+                
+                col_n1, col_n2, col_n3 = st.columns(3)
+                new_cat = col_n1.selectbox("계좌(분류) 선택", existing_cats)
+                new_name = col_n2.text_input("자산명 (예: 삼성전자)")
+                new_type = col_n3.selectbox("자산 종류", ["stock", "crypto", "fx", "gold", "silver"])
+                
+                col_n4, col_n5, col_n6 = st.columns(3)
+                new_ticker = col_n4.text_input("종목코드/티커 (예: 005930)")
+                new_unit = col_n5.text_input("단위 (예: 주, 달러)", "주")
+                t_date = col_n6.date_input("거래일자", datetime.now())
+                
+                col_n7, col_n8 = st.columns(2)
+                t_qty = col_n7.number_input("매수 수량", min_value=0.0, step=1.0)
+                t_price = col_n8.number_input("체결단가 (원)", min_value=0.0, step=100.0)
+                
+                if st.button("새 종목 매수 실행", use_container_width=True, type="primary"):
+                    if new_name and new_ticker and t_qty > 0 and t_price >= 0:
+                        gross_amt = t_qty * t_price
+                        curr_dep = st.session_state.deposits.get(new_cat, 0.0)
+                        if curr_dep < gross_amt:
+                            st.error(f"예수금 부족! (현재: {int(curr_dep):,}원 / 필요: {int(gross_amt):,}원)")
+                        else:
+                            st.session_state.deposits[new_cat] = curr_dep - gross_amt
+                            new_asset = {
+                                "category": new_cat, "name": new_name, "type": new_type,
+                                "qty": t_qty, "ticker": new_ticker, "unit": new_unit, "avg_price": t_price
+                            }
+                            st.session_state.assets.append(new_asset)
+                            st.session_state.history.append({"date": str(t_date), "type": "매수", "category": new_cat, "name": new_name, "qty": t_qty, "price": t_price, "unit": new_unit})
+                            save_data()
+                            st.rerun()
+                    else:
+                        st.error("자산명, 종목코드, 수량 및 단가를 정확히 입력해주세요.")
+            
+            # --- [1-B] 기존 종목 추가 매수 ---
+            else:
+                sel_asset_idx = int(sel_option.split(" : ")[0])
+                sel_asset = st.session_state.assets[sel_asset_idx]
+                
+                col_a, col_b, col_c = st.columns(3)
+                t_date = col_a.date_input("거래일자", datetime.now())
+                t_qty = col_b.number_input("매수 수량", min_value=0.0, step=1.0)
+                t_price = col_c.number_input("체결단가 (원)", min_value=0.0, step=100.0, value=float(current_prices.get(f"{sel_asset['category']}_{sel_asset['name']}", 0)))
+                
+                if st.button(f"매수 실행", use_container_width=True, type="primary"):
+                    if t_qty > 0 and t_price >= 0:
+                        cat = sel_asset['category']
+                        gross_amt = t_qty * t_price
+                        curr_dep = st.session_state.deposits.get(cat, 0.0)
+                        if curr_dep < gross_amt:
+                            st.error(f"예수금 부족! (현재: {int(curr_dep):,}원 / 필요: {int(gross_amt):,}원)")
+                        else:
+                            st.session_state.deposits[cat] = curr_dep - gross_amt
+                            old_qty, old_avg = float(sel_asset['qty']), float(sel_asset.get('avg_price', 0))
+                            new_qty = old_qty + t_qty
+                            sel_asset['avg_price'] = ((old_qty * old_avg) + (t_qty * t_price)) / new_qty
+                            sel_asset['qty'] = int(new_qty) if new_qty.is_integer() else new_qty
+                            st.session_state.history.append({"date": str(t_date), "type": "매수", "category": cat, "name": sel_asset['name'], "qty": t_qty, "price": t_price, "unit": sel_asset['unit']})
+                            save_data()
+                            st.rerun()
+
+        # 📌 2. [매도] 기능 유지
+        elif action == "매도":
             asset_names = [f"{i} : {a['category']} - {a['name']}" for i, a in enumerate(st.session_state.assets)]
             if not asset_names:
-                st.warning("보유 중인 자산이 없습니다. 먼저 신규 등록을 진행해 주세요.")
+                st.warning("보유 중인 자산이 없습니다.")
             else:
                 sel_asset_idx = int(st.selectbox("대상 자산", asset_names).split(" : ")[0])
                 sel_asset = st.session_state.assets[sel_asset_idx]
                 
                 col_a, col_b, col_c = st.columns(3)
                 t_date = col_a.date_input("거래일자", datetime.now())
-                t_qty = col_b.number_input("수량", min_value=0.0, step=1.0)
+                t_qty = col_b.number_input("매도 수량", min_value=0.0, step=1.0)
                 t_price = col_c.number_input("체결단가 (원)", min_value=0.0, step=100.0, value=float(current_prices.get(f"{sel_asset['category']}_{sel_asset['name']}", 0)))
                 
-                if st.button(f"{action} 실행", use_container_width=True, type="primary"):
+                if st.button(f"매도 실행", use_container_width=True, type="primary"):
                     if t_qty > 0 and t_price >= 0:
                         cat = sel_asset['category']
                         gross_amt = t_qty * t_price
-                        if action == "매수":
-                            curr_dep = st.session_state.deposits.get(cat, 0.0)
-                            if curr_dep < gross_amt:
-                                st.error(f"예수금 부족! (현재: {int(curr_dep):,}원 / 필요: {int(gross_amt):,}원)")
-                            else:
-                                st.session_state.deposits[cat] = curr_dep - gross_amt
-                                old_qty, old_avg = float(sel_asset['qty']), float(sel_asset.get('avg_price', 0))
-                                new_qty = old_qty + t_qty
-                                sel_asset['avg_price'] = ((old_qty * old_avg) + (t_qty * t_price)) / new_qty
-                                sel_asset['qty'] = int(new_qty) if new_qty.is_integer() else new_qty
-                                st.session_state.history.append({"date": str(t_date), "type": "매수", "category": cat, "name": sel_asset['name'], "qty": t_qty, "price": t_price, "unit": sel_asset['unit']})
-                                save_data()
-                                st.rerun()
-                        elif action == "매도":
-                            old_qty = float(sel_asset['qty'])
-                            if t_qty > old_qty: st.error("보유 수량보다 많습니다.")
-                            else:
-                                tax_fee = gross_amt * 0.002 if sel_asset['type'] == 'stock' else 0
-                                st.session_state.deposits[cat] = st.session_state.deposits.get(cat, 0.0) + (gross_amt - tax_fee)
-                                new_qty = old_qty - t_qty
-                                sel_asset['qty'] = int(new_qty) if new_qty.is_integer() else new_qty
-                                if new_qty == 0: sel_asset['avg_price'] = 0
-                                st.session_state.history.append({"date": str(t_date), "type": "매도", "category": cat, "name": sel_asset['name'], "qty": t_qty, "price": t_price, "unit": sel_asset['unit']})
-                                save_data()
-                                st.rerun()
-                                
-        # 📌 [신규 등록] 로직 추가
-        elif action == "신규 등록":
-            st.markdown("<br><b>✨ 새로운 종목/계좌 등록</b>", unsafe_allow_html=True)
-            col_n1, col_n2, col_n3 = st.columns(3)
-            new_cat = col_n1.text_input("분류 (예: 키움(일반), 업비트)", "새 계좌")
-            new_name = col_n2.text_input("자산명 (예: 삼성전자)", "")
-            new_type = col_n3.selectbox("자산 종류", ["stock", "crypto", "fx", "gold", "silver"])
+                        old_qty = float(sel_asset['qty'])
+                        if t_qty > old_qty: st.error("보유 수량보다 많습니다.")
+                        else:
+                            tax_fee = gross_amt * 0.002 if sel_asset['type'] == 'stock' else 0
+                            st.session_state.deposits[cat] = st.session_state.deposits.get(cat, 0.0) + (gross_amt - tax_fee)
+                            new_qty = old_qty - t_qty
+                            sel_asset['qty'] = int(new_qty) if new_qty.is_integer() else new_qty
+                            if new_qty == 0: sel_asset['avg_price'] = 0
+                            st.session_state.history.append({"date": str(t_date), "type": "매도", "category": cat, "name": sel_asset['name'], "qty": t_qty, "price": t_price, "unit": sel_asset['unit']})
+                            save_data()
+                            st.rerun()
+
+        # 📌 3. [신규 계좌 등록] 기능 분리
+        elif action == "신규 계좌 등록":
+            st.markdown("<br><b>✨ 새로운 계좌(분류) 개설</b>", unsafe_allow_html=True)
+            col_k1, col_k2 = st.columns(2)
+            new_account_name = col_k1.text_input("새 계좌명 (예: 토스증권, 하나은행)")
+            init_deposit = col_k2.number_input("초기 입금액 (예수금)", min_value=0.0, step=10000.0)
             
-            col_n4, col_n5, col_n6 = st.columns(3)
-            new_ticker = col_n4.text_input("종목코드/티커 (예: 005930)", "")
-            new_qty = col_n5.number_input("보유 수량", min_value=0.0, step=1.0)
-            new_price = col_n6.number_input("매수 평단가 (원)", min_value=0.0, step=100.0)
-            
-            new_unit = st.text_input("단위 (예: 주, 달러, g, 개)", "주")
-            
-            if st.button("신규 종목 등록", use_container_width=True, type="primary"):
-                if new_name and new_ticker:
-                    # 새로운 자산 생성
-                    new_asset = {
-                        "category": new_cat,
-                        "name": new_name,
-                        "type": new_type,
-                        "qty": new_qty,
-                        "ticker": new_ticker,
-                        "unit": new_unit,
-                        "avg_price": new_price
-                    }
-                    st.session_state.assets.append(new_asset)
-                    
-                    # 수량이 0보다 크면 원금(Principals)에도 추가 및 히스토리 기록
-                    if new_qty > 0:
-                        invested = new_qty * new_price
-                        curr_prin = st.session_state.principals.get(new_cat, 0.0)
-                        st.session_state.principals[new_cat] = curr_prin + invested
-                        
-                        st.session_state.history.append({
-                            "date": str(datetime.now().date()), 
-                            "type": "신규등록", 
-                            "category": new_cat, 
-                            "name": new_name, 
-                            "qty": new_qty, 
-                            "price": new_price, 
-                            "unit": new_unit
-                        })
-                    
-                    save_data()
-                    st.success(f"{new_cat} 계좌에 '{new_name}' 종목이 추가되었습니다!")
-                    st.rerun()
+            if st.button("신규 계좌 등록", use_container_width=True, type="primary"):
+                if new_account_name:
+                    if new_account_name in st.session_state.deposits:
+                        st.error("이미 존재하는 계좌명입니다.")
+                    else:
+                        st.session_state.deposits[new_account_name] = init_deposit
+                        st.session_state.principals[new_account_name] = init_deposit
+                        st.success(f"'{new_account_name}' 계좌가 성공적으로 생성되었습니다!")
+                        save_data()
+                        st.rerun()
                 else:
-                    st.error("자산명과 종목코드/티커를 반드시 입력해 주세요.")
+                    st.error("계좌명을 입력해주세요.")
 
 with tab2:
     df_sum = pd.DataFrame(summary_df_data).drop(columns=['_raw_pl'])
