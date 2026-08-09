@@ -520,14 +520,21 @@ with tab4:
 with tab5:
     st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
     col_t1, col_t2 = st.columns(2)
-    t_asset = col_t1.selectbox("조회할 종목", [a['name'] for a in st.session_state.assets if a['type'] != 'cash'])
+    
+    # 📌 1. 드롭다운 목록에 [분류명 - 자산명] 형태로 표시
+    asset_options = [f"{a['category']} - {a['name']}" for a in st.session_state.assets if a['type'] != 'cash']
+    t_asset_sel = col_t1.selectbox("조회할 종목", asset_options)
+    
     t_period = col_t2.selectbox("조회 기간", ["1mo", "3mo", "6mo", "1y", "3y", "5y"], index=1)
     
     if st.button("📊 차트 불러오기", use_container_width=True):
-        asset_info = next((a for a in st.session_state.assets if a['name'] == t_asset), None)
+        # 📌 2. 선택한 텍스트(분류명 - 자산명)와 정확히 일치하는 자산 정보 찾기
+        asset_info = next((a for a in st.session_state.assets if f"{a['category']} - {a['name']}" == t_asset_sel and a['type'] != 'cash'), None)
+        
         if asset_info:
             tkr = asset_info['ticker']
             t_type = asset_info['type']
+            
             yf_tkr = f"{tkr}.KQ" if t_type=="stock" and tkr in ["054920", "030520"] else f"{tkr}.KS" if t_type=="stock" else tkr
             if t_type == "fx": yf_tkr = "KRW=X" if tkr.upper()=="USD" else f"{tkr.upper()}KRW=X"
             
@@ -552,10 +559,8 @@ with tab5:
                         
                         avg_p = float(asset_info.get('avg_price', 0))
                         
-                        # 📌 평단가 범위 체크 및 스마트 표시 로직
                         if avg_p > 0:
                             min_p, max_p = prices.min(), prices.max()
-                            # 차트 상하단 5% 정도의 여유 공간 계산
                             margin = (max_p - min_p) * 0.05 if max_p != min_p else max_p * 0.05
                             lower_bound = min_p - margin
                             upper_bound = max_p + margin
@@ -563,10 +568,8 @@ with tab5:
                             formatted_avg = f"{avg_p:,.2f}" if t_type in ["fx", "crypto"] else f"{int(avg_p):,}"
                             
                             if lower_bound <= avg_p <= upper_bound:
-                                # 평단가가 차트 범위 안에 있으면 기존처럼 점선을 그림
                                 ax_l.axhline(avg_p, color='#FBBF24', linestyle='--', linewidth=1.5, label=f'내 평단가 ({formatted_avg})')
                             else:
-                                # 평단가가 차트 범위를 벗어나면 점선은 그리지 않고 투명한 더미를 통해 범례(텍스트)로만 표시
                                 ax_l.plot([], [], ' ', label=f'내 평단가: {formatted_avg} (차트 범위 밖)')
                         
                         ax_l.legend(frameon=False, loc='best')
@@ -577,7 +580,8 @@ with tab5:
                         else:
                             ax_l.yaxis.set_major_formatter(FuncFormatter(format_currency))
                             
-                        ax_l.set_title(f"{t_asset} 시세 추이", color=TEXT_COLOR, fontweight='bold', pad=15)
+                        # 📌 3. 차트 제목에도 [분류명 - 자산명] 반영
+                        ax_l.set_title(f"[{t_asset_sel}] 시세 추이", color=TEXT_COLOR, fontweight='bold', pad=15)
                         st.pyplot(fig_l)
                     else:
                         st.warning("해당 기간의 차트 데이터를 불러올 수 없습니다.")
