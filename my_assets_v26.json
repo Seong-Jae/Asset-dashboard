@@ -1,0 +1,66 @@
+{
+    "assets": [
+        {
+            "category": "키움(일반)",
+            "name": "한컴위드",
+            "type": "stock",
+            "qty": 15678,
+            "ticker": "054920",
+            "unit": "주",
+            "avg_price": 3515.0
+        },
+        {
+            "category": "키움(ISA)",
+            "name": "한컴위드",
+            "type": "stock",
+            "qty": 1804,
+            "ticker": "054920",
+            "unit": "주",
+            "avg_price": 5209
+        },
+        {
+            "category": "키움(ISA)",
+            "name": "한컴",
+            "type": "stock",
+            "qty": 59,
+            "ticker": "030520",
+            "unit": "주",
+            "avg_price": 16808
+        },
+        {
+            "category": "실물자산",
+            "name": "금",
+            "type": "gold",
+            "qty": 37.5,
+            "ticker": "GC=F",
+            "unit": "g",
+            "avg_price": 239776
+        },
+        {
+            "category": "실물자산",
+            "name": "은",
+            "type": "silver",
+            "qty": 4665,
+            "ticker": "SI=F",
+            "unit": "g",
+            "avg_price": 4735
+        },
+        {
+            "category": "외환",
+            "name": "달러",
+            "type": "fx",
+            "qty": 354.42,
+            "ticker": "USD",
+            "unit": "USD",
+            "avg_price": 1410.74
+        }
+    ],
+    "principals": {
+        "키움(일반)": 80000000.0,
+        "키움(ISA)": 9500000.0
+    },
+    "deposits": {
+        "키움(일반)": 1572.0,
+        "키움(ISA)": 78.0
+    }
+}
