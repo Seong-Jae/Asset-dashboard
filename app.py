@@ -322,7 +322,15 @@ with tab3:
     # 2. 각 분류별 자산 구성 파이차트 (모바일 2열 배치)
     cols = st.columns(2)
     idx = 0
-    for cat in cat_vals.keys():
+    
+    # 📌 출력 순서 커스텀: 실물자산이 키움(ISA)보다 먼저 오도록 순서 지정
+    custom_order = ["키움(일반)", "실물자산", "키움(ISA)", "외환"]
+    
+    # 지정한 순서대로 먼저 나열하고, 새로 추가된 계좌가 있다면 맨 뒤에 붙임
+    display_cats = [c for c in custom_order if c in cat_vals.keys()]
+    display_cats += [c for c in cat_vals.keys() if c not in display_cats]
+    
+    for cat in display_cats:
         sub_items = [d for d in asset_df_data if d['분류'] == cat and d['_raw_val'] > 0]
         if sub_items:
             with cols[idx % 2]:
