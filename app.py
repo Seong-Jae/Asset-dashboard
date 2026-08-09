@@ -226,7 +226,7 @@ def color_profit_loss(val):
 with tab1:
     df_assets = pd.DataFrame(asset_df_data).drop(columns=['_raw_pl', '_raw_val', '_type', 'ID'])
     
-    # 📌 정렬 기준 설정 (글자는 중앙, 숫자는 우측)
+    # 정렬 기준 설정 (글자는 중앙, 숫자는 우측)
     cols_center = ['분류', '자산명']
     cols_right = ['수량', '매수단가', '현재가', '평가손익', '수익률(%)', '평가금액']
     
@@ -234,7 +234,7 @@ with tab1:
                  .map(color_profit_loss, subset=['평가손익', '수익률(%)'])
                  .set_properties(subset=cols_center, **{'text-align': 'center'})
                  .set_properties(subset=cols_right, **{'text-align': 'right'})
-                 .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}]) # 열 제목 중앙 정렬
+                 .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
                 )
     st.dataframe(styled_df, use_container_width=True)
     
@@ -283,7 +283,7 @@ with tab1:
 with tab2:
     df_sum = pd.DataFrame(summary_df_data).drop(columns=['_raw_pl'])
     
-    # 📌 정렬 기준 설정 (글자는 중앙, 숫자는 우측)
+    # 정렬 기준 설정 (글자는 중앙, 숫자는 우측)
     cols_center_sum = ['분류']
     cols_right_sum = ['순원금', '예수금', '주식등평가금', '총평가금액', '평가손익', '수익률(%)']
     
@@ -291,7 +291,7 @@ with tab2:
                   .map(color_profit_loss, subset=['평가손익', '수익률(%)'])
                   .set_properties(subset=cols_center_sum, **{'text-align': 'center'})
                   .set_properties(subset=cols_right_sum, **{'text-align': 'right'})
-                  .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}]) # 열 제목 중앙 정렬
+                  .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}])
                  )
     st.dataframe(styled_sum, use_container_width=True)
     
@@ -318,35 +318,7 @@ with tab2:
                     save_data()
                     st.rerun()
 
-with tab2:
-    df_sum = pd.DataFrame(summary_df_data).drop(columns=['_raw_pl'])
-    styled_sum = df_sum.style.map(color_profit_loss, subset=['평가손익', '수익률(%)'])
-    st.dataframe(styled_sum, use_container_width=True)
-    
-    with st.expander("💳 입/출금 및 예수금 직접 설정"):
-        cats = [c["분류"] for c in summary_df_data]
-        if cats:
-            target_cat = st.selectbox("계좌 선택", cats)
-            col_m1, col_m2 = st.columns(2)
-            dw_amt = col_m1.number_input("금액 (원)", min_value=0.0, step=10000.0)
-            dw_type = col_m2.radio("작업", ["입금 (+)", "출금 (-)"], horizontal=True)
-            
-            if st.button("입/출금 적용", use_container_width=True):
-                if dw_amt > 0:
-                    curr_prin = st.session_state.principals.get(target_cat, cat_summary[target_cat]["auto_prin"])
-                    curr_dep = st.session_state.deposits.get(target_cat, 0.0)
-                    if dw_type == "입금 (+)":
-                        st.session_state.principals[target_cat] = curr_prin + dw_amt
-                        st.session_state.deposits[target_cat] = curr_dep + dw_amt
-                    else:
-                        if curr_dep < dw_amt: st.error("예수금이 부족합니다.")
-                        else:
-                            st.session_state.principals[target_cat] = curr_prin - dw_amt
-                            st.session_state.deposits[target_cat] = curr_dep - dw_amt
-                    save_data()
-                    st.rerun()
-
-# --- 탭 3: 비중 분석 (전체 비중 & 분류별 상세 구성 추가) ---
+# --- 탭 3: 비중 분석 ---
 with tab3:
     mode = st.radio("분석 기준", ["현재 평가금액 기준", "총 원금 기준"], horizontal=True)
     
@@ -359,14 +331,10 @@ with tab3:
         for d in summary_df_data: cat_vals[d['분류']] = int(d['순원금'].replace(',', ''))
         
     if cat_vals:
-        # pie 함수가 반환하는 wedges, texts, autotexts(퍼센트 텍스트)를 각각 변수로 받음
         wedges, texts, autotexts = ax_pie.pie(cat_vals.values(), labels=cat_vals.keys(), autopct='%1.1f%%', colors=plt.cm.Set3.colors, textprops={'color': TEXT_COLOR, 'fontsize': 10})
-        
-        # 내부 퍼센트 글자(autotexts)만 검정색 + 굵게 설정
         for autotext in autotexts:
             autotext.set_color('black')
             autotext.set_fontweight('bold')
-            
         ax_pie.set_title("전체 자산 비중", color=TEXT_COLOR, pad=15, fontweight='bold')
         st.pyplot(fig_pie)
     
@@ -377,9 +345,7 @@ with tab3:
     cols = st.columns(2)
     idx = 0
     
-    # 📌 출력 순서 커스텀: 실물자산이 키움(ISA)보다 먼저 오도록 순서 지정
     custom_order = ["키움(일반)", "실물자산", "키움(ISA)", "외환"]
-    
     display_cats = [c for c in custom_order if c in cat_vals.keys()]
     display_cats += [c for c in cat_vals.keys() if c not in display_cats]
     
@@ -392,19 +358,15 @@ with tab3:
                 s_vals = [d['_raw_val'] for d in sub_items]
                 
                 wedges, texts, autotexts = ax_sub.pie(s_vals, labels=s_names, autopct='%1.1f%%', colors=plt.cm.tab20.colors, textprops={'color': TEXT_COLOR, 'fontsize': 9})
-                
-                # 내부 퍼센트 글자만 검정색 + 굵게 설정
                 for autotext in autotexts:
                     autotext.set_color('black')
                     autotext.set_fontweight('bold')
-                    
                 ax_sub.set_title(f"[{cat}]", color=TEXT_COLOR, fontweight='bold')
                 st.pyplot(fig_sub)
             idx += 1
 
-# --- 탭 4: 손익 현황 (동일 종목 합산 처리 추가) ---
+# --- 탭 4: 손익 현황 ---
 with tab4:
-    # 차트 간격 조정을 위해 hspace 추가
     fig_bar, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 11))
     plt.subplots_adjust(hspace=0.4) 
     
@@ -421,7 +383,7 @@ with tab4:
             h = bar.get_height()
             ax1.text(bar.get_x() + bar.get_width()/2, h, f"{int(h/10000)}만", ha='center', va='bottom' if h>0 else 'top', color=TEXT_COLOR, fontweight='bold', fontsize=9)
             
-    # 2. 종목별 손익 (같은 자산명 끼리 손익 합산)
+    # 2. 종목별 합산 손익
     item_pl_agg = {}
     for d in asset_df_data:
         if d['_type'] != 'cash' and d['_raw_pl'] != 0:
