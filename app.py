@@ -225,8 +225,17 @@ def color_profit_loss(val):
 
 with tab1:
     df_assets = pd.DataFrame(asset_df_data).drop(columns=['_raw_pl', '_raw_val', '_type', 'ID'])
-    # Pandas 버전 호환성을 위해 map 사용 (에러 수정 완료)
-    styled_df = df_assets.style.map(color_profit_loss, subset=['평가손익', '수익률(%)'])
+    
+    # 📌 정렬 기준 설정 (글자는 중앙, 숫자는 우측)
+    cols_center = ['분류', '자산명']
+    cols_right = ['수량', '매수단가', '현재가', '평가손익', '수익률(%)', '평가금액']
+    
+    styled_df = (df_assets.style
+                 .map(color_profit_loss, subset=['평가손익', '수익률(%)'])
+                 .set_properties(subset=cols_center, **{'text-align': 'center'})
+                 .set_properties(subset=cols_right, **{'text-align': 'right'})
+                 .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}]) # 열 제목 중앙 정렬
+                )
     st.dataframe(styled_df, use_container_width=True)
     
     with st.expander("💼 주식 매수 / 매도 / 신규 등록"):
@@ -270,6 +279,44 @@ with tab1:
                             st.session_state.history.append({"date": str(t_date), "type": "매도", "category": cat, "name": sel_asset['name'], "qty": t_qty, "price": t_price, "unit": sel_asset['unit']})
                             save_data()
                             st.rerun()
+
+with tab2:
+    df_sum = pd.DataFrame(summary_df_data).drop(columns=['_raw_pl'])
+    
+    # 📌 정렬 기준 설정 (글자는 중앙, 숫자는 우측)
+    cols_center_sum = ['분류']
+    cols_right_sum = ['순원금', '예수금', '주식등평가금', '총평가금액', '평가손익', '수익률(%)']
+    
+    styled_sum = (df_sum.style
+                  .map(color_profit_loss, subset=['평가손익', '수익률(%)'])
+                  .set_properties(subset=cols_center_sum, **{'text-align': 'center'})
+                  .set_properties(subset=cols_right_sum, **{'text-align': 'right'})
+                  .set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}]) # 열 제목 중앙 정렬
+                 )
+    st.dataframe(styled_sum, use_container_width=True)
+    
+    with st.expander("💳 입/출금 및 예수금 직접 설정"):
+        cats = [c["분류"] for c in summary_df_data]
+        if cats:
+            target_cat = st.selectbox("계좌 선택", cats)
+            col_m1, col_m2 = st.columns(2)
+            dw_amt = col_m1.number_input("금액 (원)", min_value=0.0, step=10000.0)
+            dw_type = col_m2.radio("작업", ["입금 (+)", "출금 (-)"], horizontal=True)
+            
+            if st.button("입/출금 적용", use_container_width=True):
+                if dw_amt > 0:
+                    curr_prin = st.session_state.principals.get(target_cat, cat_summary[target_cat]["auto_prin"])
+                    curr_dep = st.session_state.deposits.get(target_cat, 0.0)
+                    if dw_type == "입금 (+)":
+                        st.session_state.principals[target_cat] = curr_prin + dw_amt
+                        st.session_state.deposits[target_cat] = curr_dep + dw_amt
+                    else:
+                        if curr_dep < dw_amt: st.error("예수금이 부족합니다.")
+                        else:
+                            st.session_state.principals[target_cat] = curr_prin - dw_amt
+                            st.session_state.deposits[target_cat] = curr_dep - dw_amt
+                    save_data()
+                    st.rerun()
 
 with tab2:
     df_sum = pd.DataFrame(summary_df_data).drop(columns=['_raw_pl'])
