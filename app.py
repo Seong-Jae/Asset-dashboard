@@ -25,7 +25,7 @@ else:
 plt.rcParams['axes.unicode_minus'] = False 
 
 # --- 기본 페이지 설정 ---
-st.set_page_config(page_title="내 자산 MTS", page_icon="📈", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="성재님의 자산 MTS", page_icon="📈", layout="wide", initial_sidebar_state="collapsed")
 
 # --- MTS 스타일 커스텀 CSS 주입 ---
 st.markdown("""
@@ -69,8 +69,7 @@ st.markdown("""
     }
     table { 
         width: 100%; border-collapse: collapse; background-color: #1C1F26; 
-        color: #FFFFFF; 
-        white-space: nowrap; 
+        color: #FFFFFF; white-space: nowrap; 
     }
     th, td { padding: 12px 10px; border-bottom: 1px solid #2C313C; }
     th { background-color: #2C313C; color: #8B95A1; font-size: 13px; text-align: center !important; font-weight: 600; }
@@ -214,7 +213,7 @@ for cat, data in cat_summary.items():
 tot_pl = total_valuation - global_principal
 tot_pct = (tot_pl / global_principal * 100) if global_principal > 0 else 0
 
-# --- 상단 MTS 스타일 대시보드 카드 ---
+# --- 📌 상단 MTS 스타일 대시보드 카드 (▲/▼ 적용) ---
 if tot_pl > 0:
     sign_str = "▲ "
     pl_class = "profit"
@@ -227,7 +226,7 @@ else:
 
 st.markdown(f"""
 <div class="summary-card">
-    <div class="summary-title">총 평가금액 (KRW)</div>
+    <div class="summary-title">👋 성재님의 총 자산 (KRW)</div>
     <div class="summary-total">{int(total_valuation):,} 원</div>
     <div style="font-size: 16px; margin-top: 10px;">
         <div class="{pl_class}" style="margin-bottom: 4px;">총 손익: {sign_str}{int(abs(tot_pl)):,}원 ({sign_str}{abs(tot_pct):.2f}%)</div>
@@ -444,8 +443,6 @@ with tab3:
             autotext.set_color('black')
             autotext.set_fontweight('bold')
         ax_pie.set_title("전체 자산 비중", color=TEXT_COLOR, pad=15, fontweight='bold')
-        
-        # 📌 파이차트 크기 강제 고정을 위한 축 한계 설정
         ax_pie.set_xlim(-1.5, 1.5)
         ax_pie.set_ylim(-1.5, 1.5)
         st.pyplot(fig_pie)
@@ -477,11 +474,8 @@ with tab3:
                     autotext.set_color('black')
                     autotext.set_fontweight('bold')
                 ax_sub.set_title(f"[{cat}]", color=TEXT_COLOR, fontweight='bold')
-                
-                # 📌 서브 파이차트들의 배경 영역을 동일하게 넉넉히 고정하여 크기 맞춤
                 ax_sub.set_xlim(-1.8, 1.8)
                 ax_sub.set_ylim(-1.8, 1.8)
-                
                 st.pyplot(fig_sub)
             idx += 1
 
