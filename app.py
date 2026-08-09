@@ -30,6 +30,13 @@ st.set_page_config(page_title="내 자산 MTS", page_icon="📈", layout="wide",
 # --- MTS 스타일 커스텀 CSS 주입 (표 디자인 포함) ---
 st.markdown("""
     <style>
+    /* 모바일 글씨 흐림 방지 및 안티앨리어싱 강제 적용 */
+    * {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        -webkit-text-size-adjust: 100%;
+    }
+    
     .stApp { background-color: #0B0E14; }
     .summary-card {
         background-color: #1C1F26;
@@ -49,17 +56,22 @@ st.markdown("""
         height: 50px; white-space: pre-wrap;
         background-color: #1C1F26; border-radius: 8px 8px 0 0;
         padding: 10px 16px; color: #FAFAFA;
+        font-weight: 600; /* 탭 글씨도 약간 굵게 */
     }
     .stTabs [aria-selected="true"] {
         background-color: #2C313C; border-bottom-color: #FF4256 !important;
         color: #FF4256 !important; font-weight: bold;
     }
     
-    /* HTML 커스텀 표 스타일 */
-    table { width: 100%; border-collapse: collapse; background-color: #1C1F26; border-radius: 10px; overflow: hidden; margin-bottom: 20px;}
+    /* HTML 커스텀 표 스타일 (모바일 최적화) */
+    table { 
+        width: 100%; border-collapse: collapse; background-color: #1C1F26; 
+        border-radius: 10px; overflow: hidden; margin-bottom: 20px;
+        color: #FFFFFF; /* 표 전체 기본 글자를 쨍한 흰색으로 강제 */
+    }
     th, td { padding: 12px 10px; border-bottom: 1px solid #2C313C; }
     th { background-color: #2C313C; color: #8B95A1; font-size: 13px; text-align: center !important; font-weight: 600; }
-    td { font-size: 14px; }
+    td { font-size: 14px; font-weight: 500; } /* 기본 글씨 굵기를 조금 올려줌 */
     tr:hover { background-color: #252A34; }
     </style>
 """, unsafe_allow_html=True)
