@@ -5,6 +5,7 @@ import yfinance as yf
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib.font_manager as fm
 from matplotlib.ticker import FuncFormatter
 from datetime import datetime
 import streamlit as st
@@ -12,6 +13,11 @@ import platform
 
 # --- 한글 폰트 설정 (Streamlit Cloud 리눅스 환경 대응) ---
 if platform.system() == 'Linux':
+    # 리눅스(Streamlit Cloud) 환경에서 설치된 나눔폰트를 강제로 찾아 Matplotlib에 추가
+    sys_fonts = fm.findSystemFonts()
+    for f in sys_fonts:
+        if 'Nanum' in f:
+            fm.fontManager.addfont(f)
     plt.rcParams['font.family'] = 'NanumGothic'
 elif platform.system() == 'Darwin':
     plt.rcParams['font.family'] = 'AppleGothic'
