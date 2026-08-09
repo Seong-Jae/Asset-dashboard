@@ -312,7 +312,14 @@ with tab3:
         for d in summary_df_data: cat_vals[d['분류']] = int(d['순원금'].replace(',', ''))
         
     if cat_vals:
-        ax_pie.pie(cat_vals.values(), labels=cat_vals.keys(), autopct='%1.1f%%', colors=plt.cm.Set3.colors, textprops={'color': TEXT_COLOR, 'fontsize': 10})
+        # pie 함수가 반환하는 wedges, texts, autotexts(퍼센트 텍스트)를 각각 변수로 받음
+        wedges, texts, autotexts = ax_pie.pie(cat_vals.values(), labels=cat_vals.keys(), autopct='%1.1f%%', colors=plt.cm.Set3.colors, textprops={'color': TEXT_COLOR, 'fontsize': 10})
+        
+        # 내부 퍼센트 글자(autotexts)만 검정색 + 굵게 설정
+        for autotext in autotexts:
+            autotext.set_color('black')
+            autotext.set_fontweight('bold')
+            
         ax_pie.set_title("전체 자산 비중", color=TEXT_COLOR, pad=15, fontweight='bold')
         st.pyplot(fig_pie)
     
@@ -326,7 +333,6 @@ with tab3:
     # 📌 출력 순서 커스텀: 실물자산이 키움(ISA)보다 먼저 오도록 순서 지정
     custom_order = ["키움(일반)", "실물자산", "키움(ISA)", "외환"]
     
-    # 지정한 순서대로 먼저 나열하고, 새로 추가된 계좌가 있다면 맨 뒤에 붙임
     display_cats = [c for c in custom_order if c in cat_vals.keys()]
     display_cats += [c for c in cat_vals.keys() if c not in display_cats]
     
@@ -338,7 +344,13 @@ with tab3:
                 s_names = [d['자산명'] for d in sub_items]
                 s_vals = [d['_raw_val'] for d in sub_items]
                 
-                ax_sub.pie(s_vals, labels=s_names, autopct='%1.1f%%', colors=plt.cm.tab20.colors, textprops={'color': TEXT_COLOR, 'fontsize': 9})
+                wedges, texts, autotexts = ax_sub.pie(s_vals, labels=s_names, autopct='%1.1f%%', colors=plt.cm.tab20.colors, textprops={'color': TEXT_COLOR, 'fontsize': 9})
+                
+                # 내부 퍼센트 글자만 검정색 + 굵게 설정
+                for autotext in autotexts:
+                    autotext.set_color('black')
+                    autotext.set_fontweight('bold')
+                    
                 ax_sub.set_title(f"[{cat}]", color=TEXT_COLOR, fontweight='bold')
                 st.pyplot(fig_sub)
             idx += 1
