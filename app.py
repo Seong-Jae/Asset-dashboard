@@ -532,20 +532,47 @@ with tab5:
             if t_type == "fx": yf_tkr = "KRW=X" if tkr.upper()=="USD" else f"{tkr.upper()}KRW=X"
             
             with st.spinner('차트 데이터를 불러오는 중...'):
-                hist = yf.Ticker(yf_tkr).history(period=t_period)
-                if not hist.empty:
-                    fig_l, ax_l = plt.subplots(figsize=(8, 4))
-                    dates, prices = hist.index, hist['Close']
-                    c = RED_COLOR if prices.iloc[-1] >= prices.iloc[0] else BLUE_COLOR
-                    ax_l.plot(dates, prices, color=c, linewidth=2)
-                    ax_l.fill_between(dates, prices, min(prices)*0.99, color=c, alpha=0.1)
-                    avg_p = float(asset_info.get('avg_price', 0))
-                    if avg_p > 0: ax_l.axhline(avg_p, color='#FBBF24', linestyle='--', linewidth=1.5, label='내 평단가')
-                    ax_l.legend(frameon=False)
-                    ax_l.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d' if t_period in ["1mo","3mo"] else '%Y-%m'))
-                    ax_l.yaxis.set_major_formatter(FuncFormatter(format_currency))
-                    ax_l.set_title(f"{t_asset} 시세 추이", color=TEXT_COLOR, fontweight='bold', pad=15)
-                    st.pyplot(fig_l)
+                try:
+                    hist = yf.Ticker(yf_tkr).history(period=t_period)
+                    if not hist.empty:
+                        # 📌 핵심 수정: 금, 은 종목일 경우 시세 데이터를 달러/온스 -> 원화/그램 으로 변환
+                        if t_type in ["gold", "silver"]:
+                            krw_hist = yf.Ticker("KRW=X").history(period=t_period)['Close']
+                            
+                            # 날짜 기준으로 정확히 매칭하기 위해 시간 데이터 제거
+                            hist.index = hist.index.tz_localize(None).normalize()
+                            krw_hist.index = krw_hist.index.tz_localize(None).normalize()
+                            
+                            # 환율 빈 날짜(주말 등)는 이전 날짜 환율로 채우기
+                            krw_hist = krw_hist.reindex(hist.index).ffill().bfill()
+                            
+                            # (현재가 * 환율) / 31.1034768(그램 변환)
+                            hist['Close'] = (hist['Close'] * krw_hist) / 31.1034768
+                            
+                        fig_l, ax_l = plt.subplots(figsize=(8, 4))
+                        dates, prices = hist.index, hist['Close']
+                        c = RED_COLOR if prices.iloc[-1] >= prices.iloc[0] else BLUE_COLOR
+                        ax_l.plot(dates, prices, color=c, linewidth=2)
+                        ax_l.fill_between(dates, prices, min(prices)*0.99, color=c, alpha=0.1)
+                        
+                        avg_p = float(asset_info.get('avg_price', 0))
+                        if avg_p > 0: ax_l.axhline(avg_p, color='#FBBF24', linestyle='--', linewidth=1.5, label='내 평단가')
+                        
+                        ax_l.legend(frameon=False)
+                        ax_l.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d' if t_period in ["1mo","3mo"] else '%Y-%m'))
+                        
+                        # 외환/크립토는 소수점 유지, 그 외(주식, 실물)는 정수로 콤마 찍기
+                        if t_type in ["fx", "crypto"]:
+                            ax_l.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: f"{x:,.2f}"))
+                        else:
+                            ax_l.yaxis.set_major_formatter(FuncFormatter(format_currency))
+                            
+                        ax_l.set_title(f"{t_asset} 시세 추이", color=TEXT_COLOR, fontweight='bold', pad=15)
+                        st.pyplot(fig_l)
+                    else:
+                        st.warning("해당 기간의 차트 데이터를 불러올 수 없습니다.")
+                except Exception as e:
+                    st.error("데이터를 가져오는 중 문제가 발생했습니다.")
 
 with tab6:
     st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
