@@ -30,7 +30,6 @@ st.set_page_config(page_title="내 자산 MTS", page_icon="📈", layout="wide",
 # --- MTS 스타일 커스텀 CSS 주입 ---
 st.markdown("""
     <style>
-    /* 모바일 글씨 흐림 방지 및 안티앨리어싱 */
     * {
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
@@ -62,17 +61,16 @@ st.markdown("""
         color: #FF4256 !important; font-weight: bold;
     }
     
-    /* 표 스크롤 래퍼 및 줄바꿈 방지 세팅 (모바일 최적화) */
     .table-wrapper {
         overflow-x: auto;
-        -webkit-overflow-scrolling: touch; /* 부드러운 모바일 스크롤 */
+        -webkit-overflow-scrolling: touch; 
         border-radius: 10px;
         margin-bottom: 20px;
     }
     table { 
         width: 100%; border-collapse: collapse; background-color: #1C1F26; 
         color: #FFFFFF; 
-        white-space: nowrap; /* 글자 줄바꿈 절대 방지 */
+        white-space: nowrap; 
     }
     th, td { padding: 12px 10px; border-bottom: 1px solid #2C313C; }
     th { background-color: #2C313C; color: #8B95A1; font-size: 13px; text-align: center !important; font-weight: 600; }
@@ -249,7 +247,6 @@ def color_profit_loss(val):
 
 with tab1:
     df_assets = pd.DataFrame(asset_df_data).drop(columns=['_raw_pl', '_raw_val', '_type'])
-    
     cols_center = ['분류', '자산명']
     cols_right = ['수량', '매수단가', '현재가', '평가손익', '수익률(%)', '평가금액']
     
@@ -260,50 +257,105 @@ with tab1:
                  .set_properties(subset=cols_right, **{'text-align': 'right'})
                 )
     
-    # 📌 테이블을 div(table-wrapper)로 한 번 더 감싸서 가로 스크롤 적용
     st.markdown(f'<div class="table-wrapper">{styled_df.to_html()}</div>', unsafe_allow_html=True)
     
     with st.expander("💼 주식 매수 / 매도 / 신규 등록"):
         action = st.radio("작업 선택", ["매수", "매도", "신규 등록"], horizontal=True)
+        
+        # 📌 [매수 / 매도] 로직
         if action in ["매수", "매도"]:
             asset_names = [f"{i} : {a['category']} - {a['name']}" for i, a in enumerate(st.session_state.assets)]
-            sel_asset_idx = int(st.selectbox("대상 자산", asset_names).split(" : ")[0])
-            sel_asset = st.session_state.assets[sel_asset_idx]
+            if not asset_names:
+                st.warning("보유 중인 자산이 없습니다. 먼저 신규 등록을 진행해 주세요.")
+            else:
+                sel_asset_idx = int(st.selectbox("대상 자산", asset_names).split(" : ")[0])
+                sel_asset = st.session_state.assets[sel_asset_idx]
+                
+                col_a, col_b, col_c = st.columns(3)
+                t_date = col_a.date_input("거래일자", datetime.now())
+                t_qty = col_b.number_input("수량", min_value=0.0, step=1.0)
+                t_price = col_c.number_input("체결단가 (원)", min_value=0.0, step=100.0, value=float(current_prices.get(f"{sel_asset['category']}_{sel_asset['name']}", 0)))
+                
+                if st.button(f"{action} 실행", use_container_width=True, type="primary"):
+                    if t_qty > 0 and t_price >= 0:
+                        cat = sel_asset['category']
+                        gross_amt = t_qty * t_price
+                        if action == "매수":
+                            curr_dep = st.session_state.deposits.get(cat, 0.0)
+                            if curr_dep < gross_amt:
+                                st.error(f"예수금 부족! (현재: {int(curr_dep):,}원 / 필요: {int(gross_amt):,}원)")
+                            else:
+                                st.session_state.deposits[cat] = curr_dep - gross_amt
+                                old_qty, old_avg = float(sel_asset['qty']), float(sel_asset.get('avg_price', 0))
+                                new_qty = old_qty + t_qty
+                                sel_asset['avg_price'] = ((old_qty * old_avg) + (t_qty * t_price)) / new_qty
+                                sel_asset['qty'] = int(new_qty) if new_qty.is_integer() else new_qty
+                                st.session_state.history.append({"date": str(t_date), "type": "매수", "category": cat, "name": sel_asset['name'], "qty": t_qty, "price": t_price, "unit": sel_asset['unit']})
+                                save_data()
+                                st.rerun()
+                        elif action == "매도":
+                            old_qty = float(sel_asset['qty'])
+                            if t_qty > old_qty: st.error("보유 수량보다 많습니다.")
+                            else:
+                                tax_fee = gross_amt * 0.002 if sel_asset['type'] == 'stock' else 0
+                                st.session_state.deposits[cat] = st.session_state.deposits.get(cat, 0.0) + (gross_amt - tax_fee)
+                                new_qty = old_qty - t_qty
+                                sel_asset['qty'] = int(new_qty) if new_qty.is_integer() else new_qty
+                                if new_qty == 0: sel_asset['avg_price'] = 0
+                                st.session_state.history.append({"date": str(t_date), "type": "매도", "category": cat, "name": sel_asset['name'], "qty": t_qty, "price": t_price, "unit": sel_asset['unit']})
+                                save_data()
+                                st.rerun()
+                                
+        # 📌 [신규 등록] 로직 추가
+        elif action == "신규 등록":
+            st.markdown("<br><b>✨ 새로운 종목/계좌 등록</b>", unsafe_allow_html=True)
+            col_n1, col_n2, col_n3 = st.columns(3)
+            new_cat = col_n1.text_input("분류 (예: 키움(일반), 업비트)", "새 계좌")
+            new_name = col_n2.text_input("자산명 (예: 삼성전자)", "")
+            new_type = col_n3.selectbox("자산 종류", ["stock", "crypto", "fx", "gold", "silver"])
             
-            col_a, col_b, col_c = st.columns(3)
-            t_date = col_a.date_input("거래일자", datetime.now())
-            t_qty = col_b.number_input("수량", min_value=0.0, step=1.0)
-            t_price = col_c.number_input("체결단가 (원)", min_value=0.0, step=100.0, value=float(current_prices.get(f"{sel_asset['category']}_{sel_asset['name']}", 0)))
+            col_n4, col_n5, col_n6 = st.columns(3)
+            new_ticker = col_n4.text_input("종목코드/티커 (예: 005930)", "")
+            new_qty = col_n5.number_input("보유 수량", min_value=0.0, step=1.0)
+            new_price = col_n6.number_input("매수 평단가 (원)", min_value=0.0, step=100.0)
             
-            if st.button(f"{action} 실행", use_container_width=True, type="primary"):
-                if t_qty > 0 and t_price >= 0:
-                    cat = sel_asset['category']
-                    gross_amt = t_qty * t_price
-                    if action == "매수":
-                        curr_dep = st.session_state.deposits.get(cat, 0.0)
-                        if curr_dep < gross_amt:
-                            st.error(f"예수금 부족! (현재: {int(curr_dep):,}원 / 필요: {int(gross_amt):,}원)")
-                        else:
-                            st.session_state.deposits[cat] = curr_dep - gross_amt
-                            old_qty, old_avg = float(sel_asset['qty']), float(sel_asset.get('avg_price', 0))
-                            new_qty = old_qty + t_qty
-                            sel_asset['avg_price'] = ((old_qty * old_avg) + (t_qty * t_price)) / new_qty
-                            sel_asset['qty'] = int(new_qty) if new_qty.is_integer() else new_qty
-                            st.session_state.history.append({"date": str(t_date), "type": "매수", "category": cat, "name": sel_asset['name'], "qty": t_qty, "price": t_price, "unit": sel_asset['unit']})
-                            save_data()
-                            st.rerun()
-                    elif action == "매도":
-                        old_qty = float(sel_asset['qty'])
-                        if t_qty > old_qty: st.error("보유 수량보다 많습니다.")
-                        else:
-                            tax_fee = gross_amt * 0.002 if sel_asset['type'] == 'stock' else 0
-                            st.session_state.deposits[cat] = st.session_state.deposits.get(cat, 0.0) + (gross_amt - tax_fee)
-                            new_qty = old_qty - t_qty
-                            sel_asset['qty'] = int(new_qty) if new_qty.is_integer() else new_qty
-                            if new_qty == 0: sel_asset['avg_price'] = 0
-                            st.session_state.history.append({"date": str(t_date), "type": "매도", "category": cat, "name": sel_asset['name'], "qty": t_qty, "price": t_price, "unit": sel_asset['unit']})
-                            save_data()
-                            st.rerun()
+            new_unit = st.text_input("단위 (예: 주, 달러, g, 개)", "주")
+            
+            if st.button("신규 종목 등록", use_container_width=True, type="primary"):
+                if new_name and new_ticker:
+                    # 새로운 자산 생성
+                    new_asset = {
+                        "category": new_cat,
+                        "name": new_name,
+                        "type": new_type,
+                        "qty": new_qty,
+                        "ticker": new_ticker,
+                        "unit": new_unit,
+                        "avg_price": new_price
+                    }
+                    st.session_state.assets.append(new_asset)
+                    
+                    # 수량이 0보다 크면 원금(Principals)에도 추가 및 히스토리 기록
+                    if new_qty > 0:
+                        invested = new_qty * new_price
+                        curr_prin = st.session_state.principals.get(new_cat, 0.0)
+                        st.session_state.principals[new_cat] = curr_prin + invested
+                        
+                        st.session_state.history.append({
+                            "date": str(datetime.now().date()), 
+                            "type": "신규등록", 
+                            "category": new_cat, 
+                            "name": new_name, 
+                            "qty": new_qty, 
+                            "price": new_price, 
+                            "unit": new_unit
+                        })
+                    
+                    save_data()
+                    st.success(f"{new_cat} 계좌에 '{new_name}' 종목이 추가되었습니다!")
+                    st.rerun()
+                else:
+                    st.error("자산명과 종목코드/티커를 반드시 입력해 주세요.")
 
 with tab2:
     df_sum = pd.DataFrame(summary_df_data).drop(columns=['_raw_pl'])
@@ -318,7 +370,6 @@ with tab2:
                   .set_properties(subset=cols_right_sum, **{'text-align': 'right'})
                  )
     
-    # 📌 테이블을 div(table-wrapper)로 한 번 더 감싸서 가로 스크롤 적용
     st.markdown(f'<div class="table-wrapper">{styled_sum.to_html()}</div>', unsafe_allow_html=True)
     
     with st.expander("💳 입/출금 및 예수금 직접 설정"):
@@ -345,7 +396,7 @@ with tab2:
                     st.rerun()
 
 with tab3:
-    st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True) # 상단 여백 확보
+    st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
     mode = st.radio("분석 기준", ["현재 평가금액 기준", "총 원금 기준"], horizontal=True)
     
     fig_pie, ax_pie = plt.subplots(figsize=(6, 5))
@@ -390,9 +441,9 @@ with tab3:
             idx += 1
 
 with tab4:
-    st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True) # 📌 스트림릿 메뉴바와 안 겹치게 여백 추가
+    st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True) 
     fig_bar, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 11))
-    plt.subplots_adjust(hspace=0.4, top=0.92) # 📌 차트 내부 상단 간격 확보
+    plt.subplots_adjust(hspace=0.4, top=0.92) 
     
     cat_names = [d['분류'] for d in summary_df_data]
     cat_pls = [d['_raw_pl'] for d in summary_df_data]
@@ -462,7 +513,6 @@ with tab6:
     if st.session_state.history:
         hist_df = pd.DataFrame(reversed(st.session_state.history))
         styled_hist = hist_df.style.hide(axis="index").set_properties(**{'text-align': 'center'})
-        # 히스토리 탭도 래퍼를 씌워 가로 스크롤 활성화
         st.markdown(f'<div class="table-wrapper">{styled_hist.to_html()}</div>', unsafe_allow_html=True)
     else:
         st.info("아직 거래 내역이 없습니다.")
