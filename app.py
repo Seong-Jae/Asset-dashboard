@@ -10,6 +10,16 @@ from datetime import datetime
 import streamlit as st
 import platform
 
+# --- 한글 폰트 설정 (Streamlit Cloud 리눅스 환경 대응) ---
+if platform.system() == 'Linux':
+    plt.rcParams['font.family'] = 'NanumGothic'
+elif platform.system() == 'Darwin':
+    plt.rcParams['font.family'] = 'AppleGothic'
+else:
+    plt.rcParams['font.family'] = 'Malgun Gothic'
+
+plt.rcParams['axes.unicode_minus'] = False # 마이너스 기호 깨짐 방지
+
 # --- 기본 설정 ---
 st.set_page_config(page_title="통합 자산 대시보드", layout="wide", initial_sidebar_state="expanded")
 
@@ -23,7 +33,7 @@ DEFAULT_ASSETS = [
     {"category": "외환", "name": "달러", "type": "fx", "qty": 354.42, "ticker": "USD", "unit": "USD", "avg_price": 1410.74}
 ]
 
-# --- 차트 다크 테마 설정 ---
+# --- 차트 다크 테마 색상 설정 ---
 BG_COLOR, PANEL_COLOR, TEXT_COLOR, SUB_TEXT_COLOR = "#0E1117", "#262730", "#FAFAFA", "#94A3B8"
 RED_COLOR, BLUE_COLOR = "#EF4444", "#3B82F6"
 
@@ -31,9 +41,7 @@ plt.style.use('dark_background')
 plt.rcParams.update({
     "figure.facecolor": BG_COLOR, "axes.facecolor": BG_COLOR, "savefig.facecolor": BG_COLOR,
     "text.color": TEXT_COLOR, "axes.labelcolor": TEXT_COLOR,
-    "xtick.color": SUB_TEXT_COLOR, "ytick.color": SUB_TEXT_COLOR, "grid.color": "#334155",
-    "font.family": "AppleGothic" if platform.system() == 'Darwin' else "Malgun Gothic",
-    "axes.unicode_minus": False
+    "xtick.color": SUB_TEXT_COLOR, "ytick.color": SUB_TEXT_COLOR, "grid.color": "#334155"
 })
 
 def format_manwon(x, pos): return f"{int(x / 10000):,}"
