@@ -251,7 +251,7 @@ def color_profit_loss(val):
 with tab1:
     df_assets = pd.DataFrame(asset_df_data).drop(columns=['_raw_pl', '_raw_val', '_type', 'ID'])
     # Pandas Styler를 사용해 MTS처럼 수익률에 색상 적용
-    styled_df = df_assets.style.applymap(color_profit_loss, subset=['평가손익', '수익률(%)'])
+    styled_df = df_assets.style.map(color_profit_loss, subset=['평가손익', '수익률(%)'])
     st.dataframe(styled_df, use_container_width=True)
     
     with st.expander("💼 주식 매수 / 매도 / 신규 등록"):
@@ -298,7 +298,7 @@ with tab1:
 
 with tab2:
     df_sum = pd.DataFrame(summary_df_data).drop(columns=['_raw_pl'])
-    styled_sum = df_sum.style.applymap(color_profit_loss, subset=['평가손익', '수익률(%)'])
+    styled_sum = df_sum.style.map(color_profit_loss, subset=['평가손익', '수익률(%)'])
     st.dataframe(styled_sum, use_container_width=True)
     
     with st.expander("💳 입/출금 및 예수금 직접 설정"):
