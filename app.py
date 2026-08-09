@@ -214,7 +214,7 @@ for cat, data in cat_summary.items():
 tot_pl = total_valuation - global_principal
 tot_pct = (tot_pl / global_principal * 100) if global_principal > 0 else 0
 
-# --- 📌 상단 MTS 스타일 대시보드 카드 (개인화 & 화살표 적용) ---
+# --- 📌 상단 MTS 스타일 대시보드 카드 ---
 sign_str = "▲ " if tot_pl > 0 else "▼ " if tot_pl < 0 else ""
 sign_math = "+" if tot_pl > 0 else ""
 pl_class = "profit" if tot_pl > 0 else "loss" if tot_pl < 0 else "neutral"
@@ -261,7 +261,6 @@ with tab1:
     st.markdown(f'<div class="table-wrapper">{styled_df.to_html()}</div>', unsafe_allow_html=True)
     
     with st.expander("💼 주식 매수 / 매도 / 자산 삭제"):
-        # 📌 3. 자산 영구 삭제 기능 추가
         action = st.radio("작업 선택", ["매수", "매도", "자산 영구 삭제"], horizontal=True)
         
         if action == "매수":
@@ -361,7 +360,6 @@ with tab1:
                             save_data()
                             st.rerun()
                             
-        # 📌 자산 영구 삭제 (오기입 수정 용도)
         elif action == "자산 영구 삭제":
             st.markdown("<br><b style='color:#FF4256;'>⚠️ 주의: 목록에서 종목을 영구적으로 삭제합니다. (예수금은 반환되지 않습니다)</b>", unsafe_allow_html=True)
             asset_names = [f"{i} : {a['category']} - {a['name']}" for i, a in enumerate(st.session_state.assets)]
@@ -433,7 +431,6 @@ with tab2:
                 else:
                     st.error("계좌명을 입력해주세요.")
                     
-        # 📌 계좌 삭제 기능
         elif mg_action == "계좌 영구 삭제":
             cats = list(st.session_state.deposits.keys())
             if not cats: st.info("삭제할 계좌가 없습니다.")
@@ -445,6 +442,7 @@ with tab2:
                     save_data()
                     st.rerun()
 
+# --- 탭 3: 비중 분석 (파이차트 크기 강제 통일) ---
 with tab3:
     st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
     mode = st.radio("분석 기준", ["현재 평가금액 기준", "총 원금 기준"], horizontal=True)
@@ -457,7 +455,10 @@ with tab3:
         for d in summary_df_data: cat_vals[d['분류']] = int(d['순원금'].replace(',', ''))
         
     if cat_vals:
-        wedges, texts, autotexts = ax_pie.pie(cat_vals.values(), labels=cat_vals.keys(), autopct='%1.1f%%', colors=plt.cm.Set3.colors, textprops={'color': TEXT_COLOR, 'fontsize': 10})
+        wedges, texts, autotexts = ax_pie.pie(
+            cat_vals.values(), labels=cat_vals.keys(), autopct='%1.1f%%', 
+            colors=plt.cm.Set3.colors, textprops={'color': TEXT_COLOR, 'fontsize': 10}
+        )
         for autotext in autotexts:
             autotext.set_color('black')
             autotext.set_fontweight('bold')
@@ -482,7 +483,12 @@ with tab3:
                 s_names = [d['자산명'] for d in sub_items]
                 s_vals = [d['_raw_val'] for d in sub_items]
                 
-                wedges, texts, autotexts = ax_sub.pie(s_vals, labels=s_names, autopct='%1.1f%%', colors=plt.cm.tab20.colors, textprops={'color': TEXT_COLOR, 'fontsize': 9})
+                # 📌 1. radius=1.0을 추가하여 크기를 무조건 동일하게 강제 고정
+                wedges, texts, autotexts = ax_sub.pie(
+                    s_vals, labels=s_names, autopct='%1.1f%%', 
+                    colors=plt.cm.tab20.colors, textprops={'color': TEXT_COLOR, 'fontsize': 9},
+                    radius=1.0 
+                )
                 for autotext in autotexts:
                     autotext.set_color('black')
                     autotext.set_fontweight('bold')
@@ -528,6 +534,7 @@ with tab4:
             
     st.pyplot(fig_bar)
 
+# --- 탭 5: 시세 차트 (이전의 심플한 종가 차트로 원상 복구) ---
 with tab5:
     st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
     col_t1, col_t2 = st.columns(2)
@@ -548,21 +555,15 @@ with tab5:
                     fig_l, ax_l = plt.subplots(figsize=(8, 4))
                     dates, prices = hist.index, hist['Close']
                     
-                    # 📌 2. 20일 이동평균선(MA20) 추가 로직
-                    hist['MA20'] = prices.rolling(window=20).mean()
-                    
+                    # 📌 2. 이동평균선(MA20) 및 복잡한 요소 제거, 이전 코드로 롤백
                     c = RED_COLOR if prices.iloc[-1] >= prices.iloc[0] else BLUE_COLOR
-                    ax_l.plot(dates, prices, color=c, linewidth=2, label='종가')
-                    
-                    # MA20 라인 그리기 (데이터가 20일 이상일 때만 표시됨)
-                    ax_l.plot(dates, hist['MA20'], color='#EAB308', linestyle='-', linewidth=1.5, alpha=0.8, label='20일 이평선(MA20)')
-                    
+                    ax_l.plot(dates, prices, color=c, linewidth=2)
                     ax_l.fill_between(dates, prices, min(prices)*0.99, color=c, alpha=0.1)
+                    
                     avg_p = float(asset_info.get('avg_price', 0))
-                    if avg_p > 0: ax_l.axhline(avg_p, color='#FAFAFA', linestyle=':', linewidth=1.5, label='내 평단가')
+                    if avg_p > 0: ax_l.axhline(avg_p, color='#FBBF24', linestyle='--', linewidth=1.5, label='내 평단가')
                     
                     ax_l.legend(frameon=False)
-                    ax_l.grid(axis='y', color='#2C313C', linestyle='--', alpha=0.7) # 차트 가이드라인 추가
                     ax_l.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d' if t_period in ["1mo","3mo"] else '%Y-%m'))
                     ax_l.yaxis.set_major_formatter(FuncFormatter(format_currency))
                     ax_l.set_title(f"{t_asset} 시세 추이", color=TEXT_COLOR, fontweight='bold', pad=15)
@@ -575,7 +576,6 @@ with tab6:
         styled_hist = hist_df.style.hide(axis="index").set_properties(**{'text-align': 'center'})
         st.markdown(f'<div class="table-wrapper">{styled_hist.to_html()}</div>', unsafe_allow_html=True)
         
-        # 📌 5. 거래 내역 초기화 버튼 추가
         if st.button("🗑️ 전체 거래 내역 지우기 (초기화)"):
             st.session_state.history = []
             save_data()
